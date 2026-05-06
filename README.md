@@ -40,7 +40,7 @@ supabase db push
 supabase secrets set \
   SUPABASE_URL=https://<SEU_PROJECT_REF>.supabase.co \
   SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY> \
-  GOOGLE_OAUTH_CLIENT_ID=<CLIENT_ID_GOOGLE> \
+  GOOGLE_OAUTH_CLIENT_ID=<CLIENT_ID_GOOGLE_OPCIONAL> \
   RESEND_API_KEY=<OPCIONAL_PARA_EMAIL> \
   PORTAL_SENDER_EMAIL=<OPCIONAL> \
   PORTAL_SENDER_NAME=APPE
@@ -53,8 +53,11 @@ supabase functions deploy portal-enroll
 ```
 
 5. Configurar frontend:
-- Copie `appe.config.example.js` para `appe.config.js`.
-- Defina `window.APPE_GOOGLE_CLIENT_ID` com o Client ID OAuth do Google.
+- Edite `appe.config.js`.
+- Defina `functionsBaseUrl` com a URL das Edge Functions do projeto.
+- Defina `supabaseAnonKey` com a chave pública `anon` do projeto para o gateway das Edge Functions.
+- Defina `googleClientId` apenas se quiser habilitar Google OAuth no botão de Gmail.
+- Sem `googleClientId`, o portal continua funcional com login por dados institucionais.
 
 ## Executar localmente
 
@@ -73,3 +76,5 @@ Abra:
 - No Google Cloud, adicione `http://localhost:5173` em **Authorized JavaScript origins**.
 - Em produção, inclua o domínio real da aplicação.
 - O backend valida `id_token` no Google e confere `aud` com `GOOGLE_OAUTH_CLIENT_ID`.
+- O arquivo `appe.config.js` pode ser versionado, porque o Client ID OAuth Web é público e nao e segredo.
+- O unico segredo para envio real de confirmacao por e-mail continua sendo `RESEND_API_KEY`.

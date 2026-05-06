@@ -92,9 +92,12 @@
     </section>
   </main>
 
+<script src="appe.config.js"></script>
 <script>
+  const PORTAL_CONFIG = window.APPE_CONFIG || {};
   const AUTH_STORAGE_KEY = 'appePortalSession';
-  const FUNCTIONS_BASE_URL = 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
+  const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
+  const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
 
   function getStoredSession() {
     try {
@@ -117,7 +120,8 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+        ...(token ? { 'x-portal-session': token } : {})
       },
       body: JSON.stringify(body)
     });

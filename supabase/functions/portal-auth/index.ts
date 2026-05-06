@@ -4,7 +4,23 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts"
 const SESSION_DAYS = 7
 const GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 
+async function cleanupExpiredSessions(userId?: string) {
+  const query = adminClient
+    .from("portal_sessions")
+    .delete()
+    .lt("expires_at", new Date().toISOString())
+
+  if (userId) {
+    query.eq("user_id", userId)
+  }
+
+  const { error } = await query
+  if (error) throw error
+}
+
 async function createSession(userId: string) {
+  await cleanupExpiredSessions(userId)
+
   const token = crypto.randomUUID() + crypto.randomUUID().replaceAll("-", "")
   const tokenHash = await sha256Hex(token)
   const expiresAt = new Date()
@@ -22,8 +38,10 @@ async function createSession(userId: string) {
 }
 
 async function getSessionFromRequest(req: Request) {
+  const portalSession = req.headers.get("x-portal-session") ?? ""
   const authHeader = req.headers.get("Authorization") ?? ""
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : ""
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : ""
+  const token = portalSession || bearerToken
   if (!token) return null
 
   const tokenHash = await sha256Hex(token)

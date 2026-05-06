@@ -390,6 +390,7 @@
   <p class="footer-copy">© 2026 Academia de Polícia Penal de Pernambuco. Todos os direitos reservados.</p>
 </footer>
 
+<script src="appe.config.js"></script>
 <script>
 const ONLINE = [
   {month:'fevereiro',label:'Fevereiro 2026',title:'Conselho Disciplinar',instrutor:'Rita de Cássia',data:'26 e 27/02',status:'encerrado',horas:'16H',local:null},
@@ -441,8 +442,10 @@ const PRESENCIAL = [
 ];
 
 const statusLabel = {encerrado:'Encerrado', esgotado:'Vagas esgotadas', aberto:'Inscricoes abertas'};
+const PORTAL_CONFIG = window.APPE_CONFIG || {};
 const AUTH_STORAGE_KEY = 'appePortalSession';
-const FUNCTIONS_BASE_URL = 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
+const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
+const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
 let currentPage = 'online';
 let currentFilterOnline = 'todos';
 let currentFilterPresencial = 'todos';
@@ -472,7 +475,8 @@ async function callPortalFunction(functionName, body, token) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+      ...(token ? { 'x-portal-session': token } : {})
     },
     body: JSON.stringify(body)
   });
@@ -507,6 +511,12 @@ async function subscribeCourse(course, page) {
   const session = getStoredSession();
   if (!session?.token || !currentUser) {
     goToLogin(course, page);
+    return;
+  }
+
+  if (course.status === 'encerrado' || course.status === 'esgotado') {
+    showFeedback(`As inscricoes para "${course.title}" nao estao disponiveis no momento.`);
+    renderCourses(currentPage, currentPage === 'online' ? currentFilterOnline : currentFilterPresencial);
     return;
   }
 
@@ -667,8 +677,8 @@ function renderCourses(page, filter) {
       const cardClass = isPresencial ? 'presencial-card' : 'online-card';
       const localRow = c.local ? `<div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1C5.8 1 4 2.8 4 5c0 3.3 4 8 4 8s4-4.7 4-8c0-2.2-1.8-4-4-4z"/><circle cx="8" cy="5" r="1.5"/></svg>${c.local}</div>` : '';
       const subscribed = isSubscribed(c, page);
-      const closedCourse = c.status === 'encerrado';
-      const actionLabel = subscribed ? 'Inscricao realizada' : closedCourse ? 'Inscricoes encerradas' : 'Inscrever-se';
+      const unavailableCourse = c.status === 'encerrado' || c.status === 'esgotado';
+      const actionLabel = subscribed ? 'Inscricao realizada' : unavailableCourse ? (c.status === 'esgotado' ? 'Vagas esgotadas' : 'Inscricoes encerradas') : 'Inscrever-se';
       html += `<div class="course-card ${cardClass}" style="animation:cardIn 0.4s ease both">
         <div class="course-card-header">
           <span class="course-tag ${tagClass}">${tagText}</span>
@@ -684,7 +694,7 @@ function renderCourses(page, filter) {
           <div class="course-actions">
             <span class="course-hours">Turma · ${c.horas}</span>
             ${c.local ? `<span class="course-local">📍 ${c.local}</span>` : ''}
-            <button class="course-enroll" ${(subscribed || closedCourse) ? 'disabled' : ''} onclick='subscribeCourse(${JSON.stringify(c)}, "${page}")'>${actionLabel}</button>
+            <button class="course-enroll" ${(subscribed || unavailableCourse) ? 'disabled' : ''} onclick='subscribeCourse(${JSON.stringify(c)}, "${page}")'>${actionLabel}</button>
           </div>
         </div>
       </div>`;

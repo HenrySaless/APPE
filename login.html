@@ -193,6 +193,10 @@
     gap: 0.75rem;
     margin-bottom: 1rem;
   }
+  .google-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
   .google-mark {
     width: 20px;
     height: 20px;
@@ -373,9 +377,11 @@
 <script src="appe.config.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
+  const PORTAL_CONFIG = window.APPE_CONFIG || {};
   const AUTH_STORAGE_KEY = 'appePortalSession';
-  const FUNCTIONS_BASE_URL = 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
-  const GOOGLE_CLIENT_ID = window.APPE_GOOGLE_CLIENT_ID || '';
+  const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
+  const GOOGLE_CLIENT_ID = (PORTAL_CONFIG.googleClientId || window.APPE_GOOGLE_CLIENT_ID || '').trim();
+  const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
   const params = new URLSearchParams(window.location.search);
   let selectedProvider = 'dados institucionais';
   let googleIdToken = '';
@@ -391,6 +397,10 @@
   const registrationInput = document.getElementById('matricula');
   const registrationPattern = /^\d{9}\/\d{2}$/;
 
+  function hasGoogleClientId() {
+    return Boolean(GOOGLE_CLIENT_ID) && !/^SEU_GOOGLE_CLIENT_ID/i.test(GOOGLE_CLIENT_ID);
+  }
+
   function setStoredSession(session) {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
   }
@@ -400,7 +410,8 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+        ...(token ? { 'x-portal-session': token } : {})
       },
       body: JSON.stringify(body)
     });
@@ -436,10 +447,21 @@
     statusBox.classList.add('show');
   }
 
+  function updateGoogleButtonState() {
+    if (hasGoogleClientId()) {
+      gmailButton.disabled = false;
+      gmailButton.title = '';
+      return;
+    }
+
+    gmailButton.disabled = true;
+    gmailButton.title = 'Google OAuth ainda nao configurado neste ambiente.';
+  }
+
   function initGoogleIdentity() {
     if (googleInitialized) return true;
-    if (!GOOGLE_CLIENT_ID) {
-      showStatus('Defina window.APPE_GOOGLE_CLIENT_ID antes de usar o login Google.');
+    if (!hasGoogleClientId()) {
+      showStatus('O login com Google ainda nao foi configurado neste ambiente. Voce pode continuar com seus dados institucionais.');
       return false;
     }
     if (!window.google?.accounts?.id) {
@@ -534,6 +556,7 @@
   });
 
   updateCourseSummary();
+  updateGoogleButtonState();
 </script>
 </body>
 </html>

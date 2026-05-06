@@ -3,8 +3,10 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts"
 import { buildGoogleCalendarUrl } from "../_shared/google-calendar.ts"
 
 async function getSession(req: Request) {
+  const portalSession = req.headers.get("x-portal-session") ?? ""
   const authHeader = req.headers.get("Authorization") ?? ""
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : ""
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : ""
+  const token = portalSession || bearerToken
   if (!token) return null
 
   const tokenHash = await sha256Hex(token)
@@ -124,8 +126,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Dados do curso incompletos." }, { status: 400, headers: corsHeaders })
     }
 
-    if (courseStatus === "encerrado") {
-      return jsonResponse({ error: "As inscricoes para este curso ja foram encerradas." }, { status: 400, headers: corsHeaders })
+    if (courseStatus === "encerrado" || courseStatus === "esgotado") {
+      return jsonResponse({ error: "As inscricoes para este curso nao estao disponiveis no momento." }, { status: 400, headers: corsHeaders })
     }
 
     const calendarUrl = buildGoogleCalendarUrl({
