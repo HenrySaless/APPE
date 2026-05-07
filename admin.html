@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel admin | APPE</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1c1f6b;
+    --red: #c0292a;
+    --paper: #f7f3ec;
+    --text: #1a1a2e;
+    --muted: #5c6379;
+    --line: rgba(28,31,107,0.14);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    font-family: 'DM Sans', sans-serif;
+    background: linear-gradient(140deg, #0f1147 0%, #20124d 50%, #3b1212 100%);
+    color: var(--text);
+    padding: 2rem 1rem;
+  }
+  .container {
+    width: min(1080px, 100%);
+    margin: 0 auto;
+    background: var(--paper);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 28px 60px rgba(0,0,0,0.2);
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    color: var(--navy);
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    margin-bottom: 0.4rem;
+  }
+  .subtitle { color: var(--muted); margin-bottom: 1.4rem; line-height: 1.6; }
+  .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .btn {
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: var(--navy);
+    background: #fff;
+    cursor: pointer;
+  }
+  .btn.primary { background: linear-gradient(135deg, var(--navy), var(--red)); color: #fff; border: none; }
+  .status {
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    background: rgba(28,31,107,0.08);
+    color: var(--navy);
+    margin-bottom: 1rem;
+  }
+  .status.error { background: rgba(192,41,42,0.12); color: var(--red); }
+  .courses { display: grid; gap: 1rem; }
+  .course-card {
+    background: rgba(255,255,255,0.86);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 1rem;
+  }
+  .course-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.8rem;
+  }
+  .course-title {
+    color: var(--navy);
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  .course-meta {
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.8rem 0.9rem;
+    border-bottom: 1px solid rgba(28,31,107,0.08);
+  }
+  th {
+    color: var(--navy);
+    background: rgba(28,31,107,0.06);
+    font-size: 0.88rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+  <main class="container">
+    <h1>Painel administrativo</h1>
+    <p class="subtitle">Veja os inscritos por curso com nome completo e matrícula. O acesso é liberado somente para e-mails definidos como admin no backend.</p>
+
+    <div class="actions">
+      <a class="btn primary" href="dashboard.html">Voltar ao dashboard</a>
+      <a class="btn" href="profile.html">Atualizar cadastro</a>
+      <a class="btn" href="index.html">Ver cursos</a>
+    </div>
+
+    <p class="status" id="status">Validando sessão administrativa...</p>
+    <section class="courses" id="courses"></section>
+  </main>
+
+<script src="appe.config.js"></script>
+<script>
+  const PORTAL_CONFIG = window.APPE_CONFIG || {};
+  const AUTH_STORAGE_KEY = 'appePortalSession';
+  const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
+  const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
+
+  function getStoredSession() {
+    try {
+      return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)) || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setStoredSession(session) {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  }
+
+  function clearStoredSession() {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+
+  async function callPortalAuth(body, token) {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/portal-auth`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+        ...(token ? { 'x-portal-session': token } : {})
+      },
+      body: JSON.stringify(body)
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Nao foi possivel carregar o painel administrativo.');
+    }
+
+    return payload;
+  }
+
+  function setStatus(message, type) {
+    const element = document.getElementById('status');
+    element.textContent = message;
+    element.className = `status${type ? ` ${type}` : ''}`;
+  }
+
+  function renderCourses(courses) {
+    const container = document.getElementById('courses');
+
+    if (!courses.length) {
+      container.innerHTML = '<p class="empty">Nenhuma inscrição registrada até o momento.</p>';
+      return;
+    }
+
+    container.innerHTML = courses.map((course) => `
+      <article class="course-card">
+        <div class="course-header">
+          <div>
+            <div class="course-title">${course.course_title}</div>
+            <div class="course-meta">Modalidade: ${course.course_mode} | Data: ${course.course_date}</div>
+          </div>
+          <div class="course-meta">${course.inscritos.length} inscrito(s)</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Matrícula</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${course.inscritos.map((person) => `
+              <tr>
+                <td>${person.nome_completo}</td>
+                <td>${person.matricula}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </article>
+    `).join('');
+  }
+
+  async function boot() {
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    try {
+      const sessionPayload = await callPortalAuth({ action: 'session' }, session.token);
+      setStoredSession({ token: session.token, expiresAt: sessionPayload.expiresAt, profile: sessionPayload.profile, isAdmin: sessionPayload.isAdmin });
+
+      if (!sessionPayload.isAdmin) {
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      const payload = await callPortalAuth({ action: 'admin_enrollments' }, session.token);
+      renderCourses(payload.courses || []);
+      setStatus('Painel administrativo carregado com sucesso.');
+    } catch (error) {
+      if ((error.message || '').includes('administradores')) {
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      clearStoredSession();
+      window.location.href = 'login.html';
+    }
+  }
+
+  boot();
+</script>
+</body>
+</html>

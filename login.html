@@ -536,7 +536,8 @@
       setStoredSession({
         token: payload.token,
         expiresAt: payload.expiresAt,
-        profile: payload.profile
+        profile: payload.profile,
+        isAdmin: payload.isAdmin
       });
 
       const target = getCourseTarget();

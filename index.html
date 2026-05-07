@@ -589,7 +589,8 @@ function updateAuthBanner() {
   const metodo = currentUser.metodo_login === 'gmail' ? 'Gmail' : 'dados institucionais';
   title.textContent = `Bem-vindo, ${currentUser.nome_completo}`;
   text.textContent = `Acesso liberado por ${metodo}. Voce ja possui ${subscriptions} inscricao(oes) vinculada(s) a matricula ${currentUser.matricula}.`;
-    actions.innerHTML = '<a href="dashboard.html" class="btn-tertiary">Abrir dashboard</a><a href="login.html" class="btn-tertiary">Atualizar cadastro</a><button type="button" class="btn-tertiary" onclick="logoutPortal()">Sair</button>';
+  const adminAction = currentUser.isAdmin ? '<a href="admin.html" class="btn-tertiary">Painel admin</a>' : '';
+  actions.innerHTML = `<a href="dashboard.html" class="btn-tertiary">Abrir dashboard</a><a href="profile.html" class="btn-tertiary">Atualizar cadastro</a>${adminAction}<button type="button" class="btn-tertiary" onclick="logoutPortal()">Sair</button>`;
 }
 
 function getPendingCourseMessage() {
@@ -611,7 +612,7 @@ async function initPortalSession() {
     const payload = await callPortalFunction('portal-auth', { action: 'session' }, session.token);
     currentUser = payload.profile;
     currentEnrollments = payload.enrollments || [];
-    setStoredSession({ token: session.token, expiresAt: payload.expiresAt, profile: payload.profile });
+    setStoredSession({ token: session.token, expiresAt: payload.expiresAt, profile: payload.profile, isAdmin: payload.isAdmin });
   } catch (error) {
     clearStoredSession();
   }

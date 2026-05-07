@@ -4,6 +4,71 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts"
 const SESSION_DAYS = 7
 const GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function getAdminEmails() {
+  return (Deno.env.get("PORTAL_ADMIN_EMAILS") ?? "")
+    .split(",")
+    .map((item) => normalizeEmail(item))
+    .filter(Boolean)
+}
+
+function isAdminEmail(email?: string | null) {
+  if (!email) return false
+  return getAdminEmails().includes(normalizeEmail(email))
+}
+
+type PortalUser = {
+  id: string
+  nome_completo: string
+  email: string
+  numero: string
+  matricula: string
+  metodo_login: string
+  created_at: string
+  updated_at: string
+}
+
+function enrichProfile(profile: PortalUser) {
+  return {
+    ...profile,
+    isAdmin: isAdminEmail(profile.email),
+  }
+}
+
+async function findUserConflicts(email: string, matricula: string, ignoreUserId?: string) {
+  const { data, error } = await adminClient
+    .from("portal_users")
+    .select("id, email, matricula")
+    .or(`email.eq.${email},matricula.eq.${matricula}`)
+
+  if (error) throw error
+
+  const rows = (data ?? []).filter((item) => item.id !== ignoreUserId)
+  const emailConflict = rows.find((item) => normalizeEmail(item.email) === email)
+  const matriculaConflict = rows.find((item) => item.matricula === matricula)
+
+  return { emailConflict, matriculaConflict }
+}
+
+function getConflictMessage(emailConflict: { matricula: string } | undefined, matriculaConflict: { email: string } | undefined) {
+  if (emailConflict && matriculaConflict) {
+    return "Ja existe um cadastro com este e-mail ou matricula vinculado a outro usuario."
+  }
+
+  if (emailConflict) {
+    return "Este e-mail ja esta vinculado a outra conta."
+  }
+
+  if (matriculaConflict) {
+    return "Esta matricula ja esta vinculada a outra conta."
+  }
+
+  return null
+}
+
 async function cleanupExpiredSessions(userId?: string) {
   const query = adminClient
     .from("portal_sessions")
@@ -112,9 +177,60 @@ async function validateGoogleIdToken(idToken: string) {
   }
 
   return {
-    email: String(payload.email).toLowerCase(),
+    email: normalizeEmail(String(payload.email)),
     name: String(payload.name ?? payload.given_name ?? "").trim(),
   }
+}
+
+async function loadAdminEnrollments() {
+  const { data, error } = await adminClient
+    .from("course_enrollments")
+    .select(`
+      course_id,
+      course_title,
+      course_mode,
+      course_date,
+      created_at,
+      portal_users!inner (
+        nome_completo,
+        matricula
+      )
+    `)
+    .order("course_title", { ascending: true })
+    .order("created_at", { ascending: true })
+
+  if (error) throw error
+
+  const grouped = new Map<string, {
+    course_id: string
+    course_title: string
+    course_mode: string
+    course_date: string
+    inscritos: Array<{ nome_completo: string, matricula: string }>
+  }>()
+
+  for (const item of data ?? []) {
+    const user = Array.isArray(item.portal_users) ? item.portal_users[0] : item.portal_users
+    if (!user) continue
+
+    const groupKey = `${item.course_id}::${item.course_date}`
+    if (!grouped.has(groupKey)) {
+      grouped.set(groupKey, {
+        course_id: item.course_id,
+        course_title: item.course_title,
+        course_mode: item.course_mode,
+        course_date: item.course_date,
+        inscritos: [],
+      })
+    }
+
+    grouped.get(groupKey)?.inscritos.push({
+      nome_completo: user.nome_completo,
+      matricula: user.matricula,
+    })
+  }
+
+  return [...grouped.values()]
 }
 
 Deno.serve(async (req) => {
@@ -138,8 +254,9 @@ Deno.serve(async (req) => {
       const enrollments = await loadEnrollments(session.user.id)
       return jsonResponse({
         authenticated: true,
-        profile: session.user,
+        profile: enrichProfile(session.user as PortalUser),
         enrollments,
+        isAdmin: isAdminEmail(session.user.email),
         expiresAt: session.expiresAt,
       }, { headers: corsHeaders })
     }
@@ -153,8 +270,25 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true }, { headers: corsHeaders })
     }
 
+    if (action === "admin_enrollments") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
+
+      if (!isAdminEmail(session.user.email)) {
+        return jsonResponse({ error: "Acesso restrito a administradores." }, { status: 403, headers: corsHeaders })
+      }
+
+      const courses = await loadAdminEnrollments()
+      return jsonResponse({
+        isAdmin: true,
+        courses,
+      }, { headers: corsHeaders })
+    }
+
     const nomeCompleto = String(body.nomeCompleto ?? "").trim()
-    const email = String(body.email ?? "").trim().toLowerCase()
+    const email = normalizeEmail(String(body.email ?? ""))
     const numero = String(body.numero ?? "").trim()
     const matricula = String(body.matricula ?? "").trim()
     const metodoLogin = body.metodoLogin === "gmail" ? "gmail" : "dados"
@@ -180,16 +314,46 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Preencha nome completo, e-mail, numero e matricula." }, { status: 400, headers: corsHeaders })
     }
 
-    const { data: existingRows, error: existingError } = await adminClient
-      .from("portal_users")
-      .select("id, email, matricula")
-      .or(`email.eq.${resolvedEmail},matricula.eq.${matricula}`)
+    if (action === "update_profile") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
 
-    if (existingError) throw existingError
+      const { emailConflict, matriculaConflict } = await findUserConflicts(resolvedEmail, matricula, session.user.id)
+      const updateConflictMessage = getConflictMessage(emailConflict, matriculaConflict)
+      if (updateConflictMessage) {
+        return jsonResponse({ error: updateConflictMessage }, { status: 409, headers: corsHeaders })
+      }
 
-    const conflict = (existingRows ?? []).find((item) => item.email !== resolvedEmail || item.matricula !== matricula)
-    if (conflict) {
-      return jsonResponse({ error: "Ja existe um cadastro com este e-mail ou matricula vinculado a outro usuario." }, { status: 409, headers: corsHeaders })
+      const { data: profile, error: updateError } = await adminClient
+        .from("portal_users")
+        .update({
+          nome_completo: resolvedName,
+          email: resolvedEmail,
+          numero,
+          matricula,
+        })
+        .eq("id", session.user.id)
+        .select("id, nome_completo, email, numero, matricula, metodo_login, created_at, updated_at")
+        .single()
+
+      if (updateError) throw updateError
+
+      const enrollments = await loadEnrollments(profile.id)
+      return jsonResponse({
+        authenticated: true,
+        profile: enrichProfile(profile as PortalUser),
+        enrollments,
+        isAdmin: isAdminEmail(profile.email),
+        expiresAt: session.expiresAt,
+      }, { headers: corsHeaders })
+    }
+
+    const { emailConflict, matriculaConflict } = await findUserConflicts(resolvedEmail, matricula)
+    const loginConflictMessage = getConflictMessage(emailConflict, matriculaConflict)
+    if (loginConflictMessage) {
+      return jsonResponse({ error: loginConflictMessage }, { status: 409, headers: corsHeaders })
     }
 
     const { data: profile, error: upsertError } = await adminClient
@@ -216,8 +380,9 @@ Deno.serve(async (req) => {
       authenticated: true,
       token: session.token,
       expiresAt: session.expiresAt,
-      profile,
+      profile: enrichProfile(profile as PortalUser),
       enrollments,
+      isAdmin: isAdminEmail(profile.email),
     }, { headers: corsHeaders })
   } catch (error) {
     return jsonResponse({

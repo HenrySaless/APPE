@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atualizar cadastro | APPE</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #1c1f6b;
+    --red: #c0292a;
+    --paper: #f7f3ec;
+    --text: #1a1a2e;
+    --muted: #5c6379;
+    --line: rgba(28,31,107,0.14);
+    --ok: #1a6f43;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    font-family: 'DM Sans', sans-serif;
+    background: linear-gradient(140deg, #0f1147 0%, #20124d 50%, #3b1212 100%);
+    color: var(--text);
+    padding: 2rem 1rem;
+  }
+  .container {
+    width: min(760px, 100%);
+    margin: 0 auto;
+    background: var(--paper);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 28px 60px rgba(0,0,0,0.2);
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    color: var(--navy);
+    font-size: clamp(1.8rem, 4vw, 2.4rem);
+    margin-bottom: 0.4rem;
+  }
+  .subtitle { color: var(--muted); margin-bottom: 1.5rem; line-height: 1.6; }
+  .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .btn {
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: var(--navy);
+    background: #fff;
+    cursor: pointer;
+  }
+  .btn.primary { background: linear-gradient(135deg, var(--navy), var(--red)); color: #fff; border: none; }
+  form {
+    display: grid;
+    gap: 1rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+  label {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    color: var(--navy);
+  }
+  input {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    padding: 0.85rem 0.95rem;
+    font-size: 0.96rem;
+    background: rgba(255,255,255,0.92);
+  }
+  .helper {
+    display: block;
+    margin-top: 0.4rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .status {
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    background: rgba(28,31,107,0.08);
+    color: var(--navy);
+    line-height: 1.6;
+  }
+  .status.error { background: rgba(192,41,42,0.12); color: var(--red); }
+  .status.success { background: rgba(26,111,67,0.12); color: var(--ok); }
+  .meta {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+  <main class="container">
+    <h1>Atualizar meus dados</h1>
+    <p class="subtitle">Altere seu nome, e-mail, número e matrícula. O sistema valida automaticamente se o e-mail ou a matrícula já pertencem a outra conta.</p>
+
+    <div class="actions">
+      <a class="btn primary" href="dashboard.html">Voltar ao dashboard</a>
+      <a class="btn" href="index.html">Ver cursos</a>
+      <a class="btn" href="admin.html" id="admin-link" style="display:none;">Painel admin</a>
+    </div>
+
+    <p class="status" id="status">Carregando seus dados...</p>
+
+    <form id="profile-form" style="display:none;">
+      <div class="grid">
+        <div>
+          <label for="nomeCompleto">Nome completo</label>
+          <input id="nomeCompleto" name="nomeCompleto" type="text" required>
+        </div>
+        <div>
+          <label for="email">E-mail</label>
+          <input id="email" name="email" type="email" required>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="numero">Número</label>
+          <input id="numero" name="numero" type="text" required>
+        </div>
+        <div>
+          <label for="matricula">Número de matrícula</label>
+          <input id="matricula" name="matricula" type="text" pattern="[0-9]{9}/[0-9]{2}" title="Use o formato 123456789/01" required>
+          <span class="helper">Formato obrigatório: 123456789/01.</span>
+        </div>
+      </div>
+
+      <p class="meta" id="login-method"></p>
+
+      <button class="btn primary" type="submit">Salvar alterações</button>
+    </form>
+  </main>
+
+<script src="appe.config.js"></script>
+<script>
+  const PORTAL_CONFIG = window.APPE_CONFIG || {};
+  const AUTH_STORAGE_KEY = 'appePortalSession';
+  const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
+  const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
+  const registrationPattern = /^\d{9}\/\d{2}$/;
+  const form = document.getElementById('profile-form');
+  const statusBox = document.getElementById('status');
+  const adminLink = document.getElementById('admin-link');
+
+  function getStoredSession() {
+    try {
+      return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)) || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function setStoredSession(session) {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+  }
+
+  function clearStoredSession() {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+
+  async function callPortalAuth(body, token) {
+    const response = await fetch(`${FUNCTIONS_BASE_URL}/portal-auth`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
+        ...(token ? { 'x-portal-session': token } : {})
+      },
+      body: JSON.stringify(body)
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Nao foi possivel atualizar o cadastro.');
+    }
+
+    return payload;
+  }
+
+  function setStatus(message, type) {
+    statusBox.textContent = message;
+    statusBox.className = `status${type ? ` ${type}` : ''}`;
+  }
+
+  function fillForm(profile) {
+    document.getElementById('nomeCompleto').value = profile.nome_completo || '';
+    document.getElementById('email').value = profile.email || '';
+    document.getElementById('numero').value = profile.numero || '';
+    document.getElementById('matricula').value = profile.matricula || '';
+    document.getElementById('login-method').textContent = `Método de login atual: ${profile.metodo_login === 'gmail' ? 'Google OAuth' : 'Dados institucionais'}.`;
+    adminLink.style.display = profile.isAdmin ? 'inline-flex' : 'none';
+    form.style.display = 'grid';
+  }
+
+  async function boot() {
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    try {
+      const payload = await callPortalAuth({ action: 'session' }, session.token);
+      fillForm(payload.profile);
+      setStoredSession({ token: session.token, expiresAt: payload.expiresAt, profile: payload.profile, isAdmin: payload.isAdmin });
+      setStatus('Dados carregados. Faça as alterações desejadas e salve.');
+    } catch (error) {
+      clearStoredSession();
+      window.location.href = 'login.html';
+    }
+  }
+
+  document.getElementById('matricula').addEventListener('input', (event) => {
+    const value = event.target.value.trim();
+    if (!value || registrationPattern.test(value)) {
+      event.target.setCustomValidity('');
+      return;
+    }
+    event.target.setCustomValidity('Use o formato 123456789/01.');
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const matricula = document.getElementById('matricula').value.trim();
+    if (!registrationPattern.test(matricula)) {
+      document.getElementById('matricula').reportValidity();
+      return;
+    }
+
+    try {
+      const payload = await callPortalAuth({
+        action: 'update_profile',
+        nomeCompleto: document.getElementById('nomeCompleto').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        numero: document.getElementById('numero').value.trim(),
+        matricula
+      }, session.token);
+
+      fillForm(payload.profile);
+      setStoredSession({ token: session.token, expiresAt: payload.expiresAt, profile: payload.profile, isAdmin: payload.isAdmin });
+      setStatus('Cadastro atualizado com sucesso.', 'success');
+    } catch (error) {
+      setStatus(error.message || 'Nao foi possivel atualizar o cadastro.', 'error');
+    }
+  });
+
+  boot();
+</script>
+</body>
+</html>

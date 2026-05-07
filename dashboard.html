@@ -76,7 +76,8 @@
 
     <div class="actions">
       <a class="btn primary" href="index.html">Ver cursos e inscrever</a>
-      <a class="btn" href="login.html">Atualizar cadastro/login</a>
+      <a class="btn" href="profile.html">Atualizar meus dados</a>
+      <a class="btn" href="admin.html" id="admin-link" style="display:none;">Painel admin</a>
       <button class="btn" type="button" id="logout-btn">Encerrar sessão</button>
     </div>
 
@@ -145,6 +146,9 @@
         <div class="value">${value || '-'}</div>
       </div>
     `).join('');
+
+    const adminLink = document.getElementById('admin-link');
+    adminLink.style.display = profile.isAdmin ? 'inline-flex' : 'none';
   }
 
   function renderEnrollments(enrollments) {
@@ -174,7 +178,7 @@
       const payload = await callPortalAuth({ action: 'session' }, session.token);
       renderProfile(payload.profile);
       renderEnrollments(payload.enrollments || []);
-      setStoredSession({ token: session.token, expiresAt: payload.expiresAt, profile: payload.profile });
+      setStoredSession({ token: session.token, expiresAt: payload.expiresAt, profile: payload.profile, isAdmin: payload.isAdmin });
       document.getElementById('status').textContent = `Sessão válida até ${new Date(payload.expiresAt).toLocaleString('pt-BR')}.`;
     } catch (error) {
       clearStoredSession();

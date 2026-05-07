@@ -13,6 +13,8 @@ Portal estático (HTML/CSS/JS) com backend mínimo em Supabase Edge Functions pa
 - `index.html`: listagem de cursos e inscrição.
 - `login.html`: login institucional + Google OAuth.
 - `dashboard.html`: área pós-login com perfil e inscrições.
+- `profile.html`: atualização dos dados da própria conta.
+- `admin.html`: painel administrativo com inscritos por curso.
 - `supabase/migrations/`: schema SQL.
 - `supabase/functions/portal-auth`: autenticação/sessão.
 - `supabase/functions/portal-enroll`: inscrição e confirmação.
@@ -41,6 +43,7 @@ supabase secrets set \
   SUPABASE_URL=https://<SEU_PROJECT_REF>.supabase.co \
   SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY> \
   GOOGLE_OAUTH_CLIENT_ID=<CLIENT_ID_GOOGLE_OPCIONAL> \
+  PORTAL_ADMIN_EMAILS=<EMAIL_ADMIN_1,EMAIL_ADMIN_2> \
   RESEND_API_KEY=<OPCIONAL_PARA_EMAIL> \
   PORTAL_SENDER_EMAIL=<OPCIONAL> \
   PORTAL_SENDER_NAME=APPE
@@ -57,6 +60,7 @@ supabase functions deploy portal-enroll
 - Defina `functionsBaseUrl` com a URL das Edge Functions do projeto.
 - Defina `supabaseAnonKey` com a chave pública `anon` do projeto para o gateway das Edge Functions.
 - Defina `googleClientId` apenas se quiser habilitar Google OAuth no botão de Gmail.
+- Defina `PORTAL_ADMIN_EMAILS` nos segredos do Supabase para liberar acesso ao `admin.html`.
 - Sem `googleClientId`, o portal continua funcional com login por dados institucionais.
 
 ## Executar localmente
@@ -70,6 +74,8 @@ Abra:
 - `http://localhost:5173/index.html`
 - `http://localhost:5173/login.html`
 - `http://localhost:5173/dashboard.html`
+- `http://localhost:5173/profile.html`
+- `http://localhost:5173/admin.html`
 
 ## Observações OAuth Google
 
