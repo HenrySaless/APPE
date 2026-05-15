@@ -3,132 +3,137 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login APPE</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Login e Cadastro | APPE</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     --red: #c0292a;
-    --red-light: #e8504f;
+    --red-soft: rgba(192,41,42,0.12);
     --navy: #1c1f6b;
     --navy-dark: #0f1147;
     --gold: #d4a017;
     --paper: #f7f3ec;
     --text: #1a1a2e;
     --muted: #5c6379;
-    --line: rgba(28,31,107,0.12);
-    --success: #166534;
+    --line: rgba(28,31,107,0.14);
+    --ok: #166534;
+    --ok-soft: rgba(22,101,52,0.12);
   }
   body {
     min-height: 100vh;
     font-family: 'DM Sans', sans-serif;
-    background:
-      radial-gradient(circle at top right, rgba(212,160,23,0.2), transparent 24%),
-      radial-gradient(circle at bottom left, rgba(192,41,42,0.22), transparent 28%),
-      linear-gradient(135deg, var(--navy-dark) 0%, #20124d 45%, #3b1212 100%);
     color: var(--text);
+    background:
+      radial-gradient(circle at top left, rgba(212,160,23,0.22), transparent 25%),
+      radial-gradient(circle at bottom right, rgba(192,41,42,0.18), transparent 30%),
+      linear-gradient(135deg, var(--navy-dark) 0%, #1a2058 42%, #3b1212 100%);
   }
   .page {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: 1.05fr 0.95fr;
+    grid-template-columns: 1.08fr 0.92fr;
   }
-  .panel-brand {
+  .hero {
+    padding: 3rem;
     color: #fff;
-    padding: 4rem;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     position: relative;
     overflow: hidden;
   }
-  .panel-brand::before {
+  .hero::before {
     content: '';
     position: absolute;
     inset: 0;
     background-image:
-      linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
-    background-size: 42px 42px;
-    opacity: 0.28;
+      linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-size: 36px 36px;
+    opacity: 0.3;
   }
-  .brand-content, .brand-footer { position: relative; z-index: 1; }
-  .brand-chip {
+  .hero-content, .hero-footer { position: relative; z-index: 1; }
+  .chip {
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 0.7rem;
     padding: 0.55rem 1rem;
-    border: 1px solid rgba(255,255,255,0.16);
     border-radius: 999px;
-    color: rgba(255,255,255,0.84);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.86);
+    margin-bottom: 1.4rem;
     font-size: 0.88rem;
-    margin-bottom: 1.5rem;
   }
-  .brand-chip::before {
+  .chip::before {
     content: '';
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--gold);
   }
-  .brand-title {
+  .hero h1 {
     font-family: 'Playfair Display', serif;
-    font-size: clamp(2.3rem, 4vw, 4.4rem);
-    line-height: 1.05;
-    max-width: 10ch;
-    margin-bottom: 1.25rem;
+    font-size: clamp(2.5rem, 5vw, 4.6rem);
+    line-height: 1.02;
+    max-width: 9ch;
+    margin-bottom: 1.1rem;
   }
-  .brand-title span { color: #ffd65a; }
-  .brand-text {
+  .hero h1 span { color: #ffd65a; }
+  .hero p {
     max-width: 34rem;
-    color: rgba(255,255,255,0.76);
-    font-size: 1.02rem;
+    color: rgba(255,255,255,0.8);
     line-height: 1.8;
+    font-size: 1rem;
   }
-  .brand-list {
+  .hero-grid {
     display: grid;
     gap: 0.9rem;
     margin-top: 2rem;
   }
-  .brand-list div {
-    padding: 1rem 1.15rem;
-    border-radius: 14px;
+  .hero-card {
+    padding: 1rem 1.1rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
     background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.82);
   }
-  .brand-list strong {
+  .hero-card strong {
     display: block;
-    color: #fff;
     margin-bottom: 0.25rem;
+    color: #fff;
   }
-  .brand-footer a {
+  .hero-footer {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+  .hero-footer a {
     color: #fff;
     text-decoration: none;
-    border-bottom: 1px solid rgba(255,255,255,0.35);
+    border-bottom: 1px solid rgba(255,255,255,0.36);
   }
-  .panel-form {
-    background: var(--paper);
-    padding: 3rem;
+  .auth-panel {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 2rem;
+    background: var(--paper);
   }
-  .card {
-    width: min(100%, 560px);
-    background: rgba(255,255,255,0.84);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.75);
-    border-radius: 28px;
+  .auth-card {
+    width: min(100%, 600px);
+    background: rgba(255,255,255,0.86);
+    border: 1px solid rgba(255,255,255,0.78);
+    border-radius: 30px;
     padding: 2rem;
     box-shadow: 0 30px 90px rgba(15,17,71,0.16);
+    backdrop-filter: blur(12px);
   }
   .card-top {
     display: flex;
     justify-content: space-between;
     gap: 1rem;
     align-items: flex-start;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1.4rem;
   }
   .eyebrow {
     color: var(--red);
@@ -136,18 +141,17 @@
     letter-spacing: 0.14em;
     font-size: 0.72rem;
     font-weight: 700;
-    margin-bottom: 0.6rem;
+    margin-bottom: 0.55rem;
   }
-  .card h1 {
+  .card-top h2 {
     font-family: 'Playfair Display', serif;
-    font-size: clamp(1.8rem, 3vw, 2.6rem);
-    line-height: 1.1;
-    margin-bottom: 0.6rem;
+    font-size: clamp(1.9rem, 3vw, 2.8rem);
+    line-height: 1.08;
+    margin-bottom: 0.55rem;
   }
-  .card p {
+  .card-top p {
     color: var(--muted);
     line-height: 1.7;
-    font-size: 0.95rem;
   }
   .back-link {
     color: var(--navy);
@@ -171,57 +175,55 @@
   }
   .status-box {
     display: none;
-    background: rgba(22,163,74,0.08);
-    border: 1px solid rgba(22,163,74,0.16);
-    color: var(--success);
     line-height: 1.6;
+    border: 1px solid rgba(28,31,107,0.08);
+    background: rgba(28,31,107,0.06);
+    color: var(--navy);
   }
   .status-box.show { display: block; }
-  .google-button {
-    width: 100%;
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--text);
+  .status-box.error {
+    background: var(--red-soft);
+    border-color: rgba(192,41,42,0.18);
+    color: var(--red);
+  }
+  .status-box.success {
+    background: var(--ok-soft);
+    border-color: rgba(22,101,52,0.18);
+    color: var(--ok);
+  }
+  .toggle-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.7rem;
+    padding: 0.45rem;
+    background: rgba(28,31,107,0.05);
+    border-radius: 18px;
+    border: 1px solid rgba(28,31,107,0.08);
+    margin-bottom: 1.3rem;
+  }
+  .toggle-bar button {
+    border: none;
     border-radius: 14px;
-    padding: 0.95rem 1rem;
-    font-size: 0.96rem;
+    background: transparent;
+    color: var(--navy);
+    padding: 0.9rem 1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
   }
-  .google-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  .google-mark {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    display: inline-grid;
-    place-items: center;
-    background: conic-gradient(#4285f4 0 25%, #34a853 25% 50%, #fbbc05 50% 75%, #ea4335 75% 100%);
+  .toggle-bar button.active {
+    background: linear-gradient(135deg, var(--navy), var(--red));
     color: #fff;
-    font-size: 0.78rem;
-    font-weight: 700;
+    box-shadow: 0 16px 34px rgba(28,31,107,0.18);
   }
-  .divider {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    margin: 1rem 0 1.2rem;
+  .panel-copy {
     color: var(--muted);
-    font-size: 0.88rem;
+    margin-bottom: 1rem;
+    line-height: 1.7;
   }
-  .divider::before, .divider::after {
-    content: '';
-    height: 1px;
-    background: var(--line);
-    flex: 1;
-  }
+  .auth-pane { display: none; }
+  .auth-pane.active { display: block; }
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -237,7 +239,6 @@
   label {
     font-size: 0.88rem;
     font-weight: 700;
-    color: var(--text);
   }
   input {
     width: 100%;
@@ -251,7 +252,7 @@
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   input:focus {
-    border-color: rgba(28,31,107,0.42);
+    border-color: rgba(28,31,107,0.4);
     box-shadow: 0 0 0 4px rgba(28,31,107,0.08);
   }
   .helper {
@@ -279,127 +280,145 @@
   }
   @media (max-width: 920px) {
     .page { grid-template-columns: 1fr; }
-    .panel-brand { padding: 2.2rem 1.4rem; gap: 2rem; }
-    .panel-form { padding: 1.4rem; }
-    .card { padding: 1.4rem; }
+    .hero { padding: 2rem 1.4rem; gap: 2rem; }
+    .auth-panel { padding: 1.4rem; }
+    .auth-card { padding: 1.4rem; }
   }
   @media (max-width: 640px) {
     .grid { grid-template-columns: 1fr; }
+    .card-top { flex-direction: column; }
   }
 </style>
 </head>
 <body>
   <main class="page">
-    <section class="panel-brand">
-      <div class="brand-content">
-        <div class="brand-chip">Portal de inscrição APPE</div>
-        <h2 class="brand-title">Entre e <span>libere sua inscrição</span> nos cursos.</h2>
-        <p class="brand-text">Use a conexão com Gmail ou preencha seus dados institucionais para acessar a área de inscrição da Academia de Polícia Penal de Pernambuco.</p>
-        <div class="brand-list">
-          <div>
-            <strong>Acesso rápido</strong>
-            Conecte com Gmail para agilizar o preenchimento do e-mail.
+    <section class="hero">
+      <div class="hero-content">
+        <div class="chip">Portal de inscrição APPE</div>
+        <h1>Entre ou <span>crie sua conta</span> para acessar os cursos.</h1>
+        <p>Agora o portal usa autenticação completa com login e cadastro separados. Usuários existentes entram com matrícula e senha. Novos usuários criam a conta sem sair da mesma página.</p>
+        <div class="hero-grid">
+          <div class="hero-card">
+            <strong>Login separado</strong>
+            O acesso só valida usuários já cadastrados. Nenhuma conta nova é criada ao entrar.
           </div>
-          <div>
-            <strong>Cadastro completo</strong>
-            Informe nome completo, número, e-mail e número de matrícula.
+          <div class="hero-card">
+            <strong>Cadastro validado</strong>
+            O sistema verifica e-mail, matrícula, senha forte e confirmação antes de salvar.
           </div>
-          <div>
-            <strong>Inscrição liberada</strong>
-            Depois do login, você volta para a página de cursos pronto para se inscrever.
+          <div class="hero-card">
+            <strong>Sem recarregar</strong>
+            Você alterna entre Login e Cadastro instantaneamente pela mesma interface.
           </div>
         </div>
       </div>
-      <div class="brand-footer">
+      <div class="hero-footer">
         <a href="index.html">Voltar para os cursos</a>
-        ·
         <a href="dashboard.html">Ir para dashboard</a>
       </div>
     </section>
 
-    <section class="panel-form">
-      <div class="card">
+    <section class="auth-panel">
+      <div class="auth-card">
         <div class="card-top">
           <div>
-            <div class="eyebrow">Login institucional</div>
-            <h1>Acesso do servidor</h1>
-            <p>Faça seu login em PT-BR para continuar no portal de cursos da APPE.</p>
+            <div class="eyebrow">Autenticação segura</div>
+            <h2>Acesso do servidor</h2>
+            <p>Escolha entre entrar com sua conta existente ou criar um novo cadastro para liberar as inscrições.</p>
           </div>
           <a href="index.html" class="back-link">Voltar</a>
         </div>
 
-        <div class="course-summary" id="course-summary">
+        <div class="course-summary">
           <strong>Inscrição pronta para continuar</strong>
-          <span id="course-summary-text">Após o login, você poderá retornar para os cursos e finalizar sua inscrição.</span>
+          <span id="course-summary-text">Após autenticar, você poderá retornar para os cursos e finalizar sua inscrição.</span>
         </div>
 
         <div class="status-box" id="status-box"></div>
 
-        <button class="google-button" type="button" id="gmail-button">
-          <span class="google-mark">G</span>
-          Entrar com Google OAuth
-        </button>
+        <div class="toggle-bar" role="tablist" aria-label="Alternar autenticação">
+          <button type="button" id="login-tab" class="active">Login</button>
+          <button type="button" id="register-tab">Cadastro</button>
+        </div>
 
-        <div class="divider">ou faça login com seus dados</div>
+        <p class="panel-copy" id="panel-copy">Entre apenas se você já possui conta cadastrada no portal.</p>
 
-        <form id="login-form">
-          <div class="grid">
-            <div class="field full">
-              <label for="nomeCompleto">Nome completo</label>
-              <input id="nomeCompleto" name="nomeCompleto" type="text" placeholder="Digite seu nome completo" required>
+        <section class="auth-pane active" id="login-pane">
+          <form id="login-form">
+            <div class="field">
+              <label for="login-matricula">Número de matrícula</label>
+              <input id="login-matricula" name="matricula" type="text" placeholder="Ex.: 168780000/01" pattern="[0-9]{9}/[0-9]{2}" title="Use o formato 123456789/01" required>
+              <span class="helper">Use o formato 123456789/01.</span>
             </div>
 
             <div class="field">
-              <label for="email">E-mail</label>
-              <input id="email" name="email" type="email" placeholder="usuario@gmail.com" required>
+              <label for="login-password">Senha</label>
+              <input id="login-password" name="password" type="password" placeholder="Digite sua senha" minlength="8" required>
             </div>
 
-            <div class="field">
-              <label for="numero">Número</label>
-              <input id="numero" name="numero" type="tel" placeholder="(81) 99999-9999" required>
+            <button class="submit" type="submit">Entrar</button>
+          </form>
+        </section>
+
+        <section class="auth-pane" id="register-pane">
+          <form id="register-form">
+            <div class="grid">
+              <div class="field full">
+                <label for="register-nomeCompleto">Nome completo</label>
+                <input id="register-nomeCompleto" name="nomeCompleto" type="text" placeholder="Digite seu nome completo" required>
+              </div>
+
+              <div class="field full">
+                <label for="register-email">E-mail</label>
+                <input id="register-email" name="email" type="email" placeholder="usuario@dominio.com" required>
+              </div>
+
+              <div class="field full">
+                <label for="register-matricula">Número de matrícula</label>
+                <input id="register-matricula" name="matricula" type="text" placeholder="Ex.: 168780000/01" pattern="[0-9]{9}/[0-9]{2}" title="Use o formato 123456789/01" required>
+                <span class="helper">A matrícula precisa ser única no portal.</span>
+              </div>
+
+              <div class="field">
+                <label for="register-password">Senha</label>
+                <input id="register-password" name="password" type="password" placeholder="Mínimo 8 caracteres" minlength="8" required>
+                <span class="helper">Use pelo menos 8 caracteres com letras e números.</span>
+              </div>
+
+              <div class="field">
+                <label for="register-confirmPassword">Confirmar senha</label>
+                <input id="register-confirmPassword" name="confirmPassword" type="password" placeholder="Repita a senha" minlength="8" required>
+              </div>
             </div>
 
-            <div class="field full">
-              <label for="matricula">Número de matrícula</label>
-              <input id="matricula" name="matricula" type="text" placeholder="Ex.: 168780000/01" pattern="[0-9]{9}/[0-9]{2}" title="Use o formato 123456789/01" required>
-              <span class="helper">Use o formato 123456789/01. Este número será usado para vincular suas inscrições aos cursos.</span>
-            </div>
-          </div>
+            <button class="submit" type="submit">Criar conta</button>
+          </form>
+        </section>
 
-          <button class="submit" type="submit">Entrar e liberar inscrição</button>
-        </form>
-
-        <p class="footnote">Seus dados de login e suas inscrições passam a ser registrados no Supabase. O envio do e-mail de confirmação depende da configuração do segredo <code>RESEND_API_KEY</code> no projeto.</p>
+        <p class="footnote">As senhas são processadas com hash no backend e nunca ficam armazenadas em texto puro. O cadastro e o login validam os dados no frontend e no backend.</p>
       </div>
     </section>
   </main>
 
 <script src="appe.config.js"></script>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
   const PORTAL_CONFIG = window.APPE_CONFIG || {};
   const AUTH_STORAGE_KEY = 'appePortalSession';
   const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
-  const GOOGLE_CLIENT_ID = (PORTAL_CONFIG.googleClientId || window.APPE_GOOGLE_CLIENT_ID || '').trim();
   const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
   const params = new URLSearchParams(window.location.search);
-  let selectedProvider = 'dados institucionais';
-  let googleIdToken = '';
-  let googleInitialized = false;
+  const matriculaPattern = /^\d{9}\/\d{2}$/;
+  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
-  const courseSummaryText = document.getElementById('course-summary-text');
   const statusBox = document.getElementById('status-box');
-  const form = document.getElementById('login-form');
-  const gmailButton = document.getElementById('gmail-button');
-  const emailInput = document.getElementById('email');
-  const nameInput = document.getElementById('nomeCompleto');
-  const numberInput = document.getElementById('numero');
-  const registrationInput = document.getElementById('matricula');
-  const registrationPattern = /^\d{9}\/\d{2}$/;
-
-  function hasGoogleClientId() {
-    return Boolean(GOOGLE_CLIENT_ID) && !/^SEU_GOOGLE_CLIENT_ID/i.test(GOOGLE_CLIENT_ID);
-  }
+  const courseSummaryText = document.getElementById('course-summary-text');
+  const panelCopy = document.getElementById('panel-copy');
+  const loginTab = document.getElementById('login-tab');
+  const registerTab = document.getElementById('register-tab');
+  const loginPane = document.getElementById('login-pane');
+  const registerPane = document.getElementById('register-pane');
+  const loginForm = document.getElementById('login-form');
+  const registerForm = document.getElementById('register-form');
 
   function setStoredSession(session) {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
@@ -418,7 +437,7 @@
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.error || 'Nao foi possivel entrar.');
+      throw new Error(payload.error || 'Nao foi possivel concluir a autenticacao.');
     }
 
     return payload;
@@ -435,129 +454,167 @@
   function updateCourseSummary() {
     const target = getCourseTarget();
     if (!target) {
-      courseSummaryText.textContent = 'Após o login, você poderá retornar para os cursos e finalizar sua inscrição.';
+      courseSummaryText.textContent = 'Após autenticar, você poderá retornar para os cursos e finalizar sua inscrição.';
       return;
     }
+
     const modalidadeLabel = target.modalidade === 'presencial' ? 'presencial' : 'online';
     courseSummaryText.textContent = `Curso selecionado: ${target.curso} | Modalidade: ${modalidadeLabel} | Data: ${target.data}.`;
   }
 
-  function showStatus(message) {
+  function showStatus(message, type) {
     statusBox.textContent = message;
-    statusBox.classList.add('show');
+    statusBox.className = `status-box show${type ? ` ${type}` : ''}`;
   }
 
-  function updateGoogleButtonState() {
-    if (hasGoogleClientId()) {
-      gmailButton.disabled = false;
-      gmailButton.title = '';
+  function switchMode(mode) {
+    const isLogin = mode === 'login';
+    loginTab.classList.toggle('active', isLogin);
+    registerTab.classList.toggle('active', !isLogin);
+    loginPane.classList.toggle('active', isLogin);
+    registerPane.classList.toggle('active', !isLogin);
+    panelCopy.textContent = isLogin
+      ? 'Entre apenas se você já possui conta cadastrada no portal.'
+      : 'Cadastre-se se esta for sua primeira vez acessando o portal.';
+    statusBox.className = 'status-box';
+    statusBox.textContent = '';
+  }
+
+  function persistAuth(payload) {
+    setStoredSession({
+      token: payload.token,
+      expiresAt: payload.expiresAt,
+      profile: payload.profile,
+      isAdmin: payload.isAdmin
+    });
+  }
+
+  function redirectAfterAuth() {
+    const target = getCourseTarget();
+    if (target) {
+      const redirectParams = new URLSearchParams({
+        curso: target.curso,
+        inscricao: 'sucesso'
+      });
+      window.location.href = `index.html?${redirectParams.toString()}`;
       return;
     }
 
-    gmailButton.disabled = true;
-    gmailButton.title = 'Google OAuth ainda nao configurado neste ambiente.';
+    window.location.href = 'dashboard.html';
   }
 
-  function initGoogleIdentity() {
-    if (googleInitialized) return true;
-    if (!hasGoogleClientId()) {
-      showStatus('O login com Google ainda nao foi configurado neste ambiente. Voce pode continuar com seus dados institucionais.');
-      return false;
+  function validateMatriculaInput(input) {
+    const value = input.value.trim();
+    if (!value || matriculaPattern.test(value)) {
+      input.setCustomValidity('');
+      return true;
     }
-    if (!window.google?.accounts?.id) {
-      showStatus('Biblioteca Google ainda nao carregou. Tente novamente em alguns segundos.');
+
+    input.setCustomValidity('Use o formato 123456789/01.');
+    input.reportValidity();
+    return false;
+  }
+
+  function validateRegisterPasswords(passwordInput, confirmInput) {
+    const password = passwordInput.value.trim();
+    const confirmPassword = confirmInput.value.trim();
+
+    if (!passwordPattern.test(password)) {
+      passwordInput.setCustomValidity('Use pelo menos 8 caracteres com letras e numeros.');
+      passwordInput.reportValidity();
       return false;
     }
 
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredential
-    });
-    googleInitialized = true;
+    passwordInput.setCustomValidity('');
+
+    if (password !== confirmPassword) {
+      confirmInput.setCustomValidity('As senhas nao coincidem.');
+      confirmInput.reportValidity();
+      return false;
+    }
+
+    confirmInput.setCustomValidity('');
     return true;
   }
 
-  function handleGoogleCredential(response) {
-    if (!response?.credential) {
-      showStatus('Nao foi possivel obter credenciais do Google.');
-      return;
-    }
+  loginTab.addEventListener('click', () => switchMode('login'));
+  registerTab.addEventListener('click', () => switchMode('register'));
 
-    googleIdToken = response.credential;
-    selectedProvider = 'gmail';
-
-    try {
-      const payload = JSON.parse(atob(response.credential.split('.')[1]));
-      if (!nameInput.value && payload.name) nameInput.value = payload.name;
-      if (!emailInput.value && payload.email) emailInput.value = payload.email;
-    } catch (error) {
-      // noop
-    }
-
-    showStatus('Conta Google autenticada. Complete numero e matricula para finalizar o login.');
-  }
-
-  gmailButton.addEventListener('click', () => {
-    if (!initGoogleIdentity()) return;
-    window.google.accounts.id.prompt();
+  document.getElementById('login-matricula').addEventListener('input', (event) => {
+    validateMatriculaInput(event.target);
   });
 
-  registrationInput.addEventListener('input', () => {
-    const matricula = registrationInput.value.trim();
-    if (!matricula || registrationPattern.test(matricula)) {
-      registrationInput.setCustomValidity('');
-      return;
-    }
-    registrationInput.setCustomValidity('Use o formato 123456789/01.');
+  document.getElementById('register-matricula').addEventListener('input', (event) => {
+    validateMatriculaInput(event.target);
   });
 
-  form.addEventListener('submit', async (event) => {
+  document.getElementById('register-password').addEventListener('input', () => {
+    validateRegisterPasswords(
+      document.getElementById('register-password'),
+      document.getElementById('register-confirmPassword')
+    );
+  });
+
+  document.getElementById('register-confirmPassword').addEventListener('input', () => {
+    validateRegisterPasswords(
+      document.getElementById('register-password'),
+      document.getElementById('register-confirmPassword')
+    );
+  });
+
+  loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
 
-    const matricula = registrationInput.value.trim();
-    if (!registrationPattern.test(matricula)) {
-      registrationInput.setCustomValidity('Use o formato 123456789/01.');
-      registrationInput.reportValidity();
-      return;
-    }
-    registrationInput.setCustomValidity('');
+    const matriculaInput = document.getElementById('login-matricula');
+    const passwordInput = document.getElementById('login-password');
+    if (!validateMatriculaInput(matriculaInput)) return;
 
     try {
       const payload = await callPortalAuth({
         action: 'login',
-        nomeCompleto: nameInput.value.trim(),
-        email: emailInput.value.trim(),
-        numero: numberInput.value.trim(),
-        matricula,
-        metodoLogin: selectedProvider,
-        googleIdToken
+        matricula: matriculaInput.value.trim(),
+        password: passwordInput.value.trim()
       });
 
-      setStoredSession({
-        token: payload.token,
-        expiresAt: payload.expiresAt,
-        profile: payload.profile,
-        isAdmin: payload.isAdmin
-      });
-
-      const target = getCourseTarget();
-      if (target) {
-        const redirectParams = new URLSearchParams({
-          curso: target.curso,
-          inscricao: 'sucesso'
-        });
-        window.location.href = `index.html?${redirectParams.toString()}`;
-        return;
-      }
-
-      window.location.href = 'dashboard.html';
+      persistAuth(payload);
+      showStatus('Login realizado com sucesso. Redirecionando...', 'success');
+      redirectAfterAuth();
     } catch (error) {
-      showStatus(error.message || 'Nao foi possivel concluir o login.');
+      showStatus(error.message || 'Nao foi possivel entrar.', 'error');
+    }
+  });
+
+  registerForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const nomeCompletoInput = document.getElementById('register-nomeCompleto');
+    const emailInput = document.getElementById('register-email');
+    const matriculaInput = document.getElementById('register-matricula');
+    const passwordInput = document.getElementById('register-password');
+    const confirmInput = document.getElementById('register-confirmPassword');
+
+    if (!validateMatriculaInput(matriculaInput)) return;
+    if (!validateRegisterPasswords(passwordInput, confirmInput)) return;
+
+    try {
+      const payload = await callPortalAuth({
+        action: 'register',
+        nomeCompleto: nomeCompletoInput.value.trim(),
+        email: emailInput.value.trim(),
+        matricula: matriculaInput.value.trim(),
+        password: passwordInput.value.trim(),
+        confirmPassword: confirmInput.value.trim()
+      });
+
+      persistAuth(payload);
+      showStatus('Cadastro concluido com sucesso. Redirecionando...', 'success');
+      redirectAfterAuth();
+    } catch (error) {
+      showStatus(error.message || 'Nao foi possivel criar a conta.', 'error');
     }
   });
 
   updateCourseSummary();
-  updateGoogleButtonState();
 </script>
 </body>
 </html>

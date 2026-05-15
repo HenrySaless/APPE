@@ -1,11 +1,34 @@
+import { compare, hash } from "npm:bcryptjs@2.4.3"
+
 import { adminClient, jsonResponse, sha256Hex } from "../_shared/db.ts"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
 
 const SESSION_DAYS = 7
-const GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
+const MATRICULA_PATTERN = /^\d{9}\/\d{2}$/
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase()
+type PortalUser = {
+  id: string
+  nome_completo: string
+  email: string
+  numero: string
+  matricula: string
+  metodo_login: string
+  created_at: string
+  updated_at: string
+}
+
+type PortalUserRow = PortalUser & {
+  password_hash?: string | null
+}
+
+function normalizeEmail(value: unknown) {
+  return String(value ?? "").trim().toLowerCase()
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? "").trim()
 }
 
 function getAdminEmails() {
@@ -20,17 +43,6 @@ function isAdminEmail(email?: string | null) {
   return getAdminEmails().includes(normalizeEmail(email))
 }
 
-type PortalUser = {
-  id: string
-  nome_completo: string
-  email: string
-  numero: string
-  matricula: string
-  metodo_login: string
-  created_at: string
-  updated_at: string
-}
-
 function enrichProfile(profile: PortalUser) {
   return {
     ...profile,
@@ -38,10 +50,71 @@ function enrichProfile(profile: PortalUser) {
   }
 }
 
+function getLoginMethodLabel(method?: string | null) {
+  if (method === "gmail") return "gmail"
+  if (method === "dados") return "dados"
+  return "senha"
+}
+
+function isUniqueViolation(error: unknown, constraint: string) {
+  const message = typeof error === "object" && error !== null && "message" in error
+    ? String(error.message)
+    : ""
+  return message.includes(constraint) || message.includes("duplicate key")
+}
+
+function getConflictMessage(emailConflict: { id: string } | undefined, matriculaConflict: { id: string } | undefined) {
+  if (emailConflict) return "Este email ja esta cadastrado."
+  if (matriculaConflict) return "Esta matricula ja esta cadastrada."
+  return null
+}
+
+function getConflictMessageFromError(error: unknown) {
+  if (isUniqueViolation(error, "portal_users_email_exact_unique") || isUniqueViolation(error, "portal_users_email_unique")) {
+    return "Este email ja esta cadastrado."
+  }
+
+  if (isUniqueViolation(error, "portal_users_matricula_unique")) {
+    return "Esta matricula ja esta cadastrada."
+  }
+
+  return null
+}
+
+function validateRegistrationInput(payload: {
+  nomeCompleto: string
+  email: string
+  matricula: string
+  password: string
+  confirmPassword: string
+}) {
+  if (!payload.nomeCompleto || !payload.email || !payload.matricula || !payload.password || !payload.confirmPassword) {
+    return "Preencha todos os campos do cadastro."
+  }
+
+  if (!EMAIL_PATTERN.test(payload.email)) {
+    return "Informe um email valido."
+  }
+
+  if (!MATRICULA_PATTERN.test(payload.matricula)) {
+    return "Use o formato 123456789/01 para a matricula."
+  }
+
+  if (!PASSWORD_PATTERN.test(payload.password)) {
+    return "A senha deve ter no minimo 8 caracteres e conter letras e numeros."
+  }
+
+  if (payload.password !== payload.confirmPassword) {
+    return "As senhas nao coincidem."
+  }
+
+  return null
+}
+
 async function findUserConflicts(email: string, matricula: string, ignoreUserId?: string) {
   const { data, error } = await adminClient
     .from("portal_users")
-    .select("id, email, matricula")
+    .select("id, email, matricula, password_hash")
     .or(`email.eq.${email},matricula.eq.${matricula}`)
 
   if (error) throw error
@@ -51,22 +124,6 @@ async function findUserConflicts(email: string, matricula: string, ignoreUserId?
   const matriculaConflict = rows.find((item) => item.matricula === matricula)
 
   return { emailConflict, matriculaConflict }
-}
-
-function getConflictMessage(emailConflict: { matricula: string } | undefined, matriculaConflict: { email: string } | undefined) {
-  if (emailConflict && matriculaConflict) {
-    return "Ja existe um cadastro com este e-mail ou matricula vinculado a outro usuario."
-  }
-
-  if (emailConflict) {
-    return "Este e-mail ja esta vinculado a outra conta."
-  }
-
-  if (matriculaConflict) {
-    return "Esta matricula ja esta vinculada a outra conta."
-  }
-
-  return null
 }
 
 async function cleanupExpiredSessions(userId?: string) {
@@ -156,32 +213,6 @@ async function loadEnrollments(userId: string) {
   return data ?? []
 }
 
-async function validateGoogleIdToken(idToken: string) {
-  if (!idToken) {
-    throw new Error("Token Google ausente.")
-  }
-
-  const response = await fetch(`${GOOGLE_TOKENINFO_URL}?id_token=${encodeURIComponent(idToken)}`)
-  if (!response.ok) {
-    throw new Error("Nao foi possivel validar o token Google.")
-  }
-
-  const payload = await response.json()
-  if (!payload?.email || !payload?.sub) {
-    throw new Error("Token Google invalido.")
-  }
-
-  const expectedAudience = Deno.env.get("GOOGLE_OAUTH_CLIENT_ID")?.trim()
-  if (expectedAudience && payload.aud !== expectedAudience) {
-    throw new Error("Audience do token Google nao confere com GOOGLE_OAUTH_CLIENT_ID.")
-  }
-
-  return {
-    email: normalizeEmail(String(payload.email)),
-    name: String(payload.name ?? payload.given_name ?? "").trim(),
-  }
-}
-
 async function loadAdminEnrollments() {
   const { data, error } = await adminClient
     .from("course_enrollments")
@@ -233,6 +264,28 @@ async function loadAdminEnrollments() {
   return [...grouped.values()]
 }
 
+async function fetchUserByMatricula(matricula: string) {
+  const { data, error } = await adminClient
+    .from("portal_users")
+    .select("id, nome_completo, email, numero, matricula, metodo_login, created_at, updated_at, password_hash")
+    .eq("matricula", matricula)
+    .maybeSingle()
+
+  if (error) throw error
+  return data as PortalUserRow | null
+}
+
+async function touchLastLogin(userId: string) {
+  const { error } = await adminClient
+    .from("portal_users")
+    .update({
+      ultimo_login_em: new Date().toISOString(),
+    })
+    .eq("id", userId)
+
+  if (error) throw error
+}
+
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
@@ -243,7 +296,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json()
-    const action = body.action ?? "login"
+    const action = normalizeText(body.action) || "login"
 
     if (action === "session") {
       const session = await getSessionFromRequest(req)
@@ -254,7 +307,10 @@ Deno.serve(async (req) => {
       const enrollments = await loadEnrollments(session.user.id)
       return jsonResponse({
         authenticated: true,
-        profile: enrichProfile(session.user as PortalUser),
+        profile: enrichProfile({
+          ...(session.user as PortalUser),
+          metodo_login: getLoginMethodLabel(session.user.metodo_login),
+        }),
         enrollments,
         isAdmin: isAdminEmail(session.user.email),
         expiresAt: session.expiresAt,
@@ -287,31 +343,121 @@ Deno.serve(async (req) => {
       }, { headers: corsHeaders })
     }
 
-    const nomeCompleto = String(body.nomeCompleto ?? "").trim()
-    const email = normalizeEmail(String(body.email ?? ""))
-    const numero = String(body.numero ?? "").trim()
-    const matricula = String(body.matricula ?? "").trim()
-    const metodoLogin = body.metodoLogin === "gmail" ? "gmail" : "dados"
-    const googleIdToken = String(body.googleIdToken ?? "").trim()
+    if (action === "login") {
+      const matricula = normalizeText(body.matricula)
+      const password = normalizeText(body.password)
 
-    let resolvedName = nomeCompleto
-    let resolvedEmail = email
-
-    if (metodoLogin === "gmail") {
-      const googleProfile = await validateGoogleIdToken(googleIdToken)
-      resolvedEmail = googleProfile.email
-
-      if (email && email !== resolvedEmail) {
-        return jsonResponse({ error: "O e-mail informado nao corresponde ao e-mail autenticado no Google." }, { status: 400, headers: corsHeaders })
+      if (!matricula || !password) {
+        return jsonResponse({ error: "Preencha matricula e senha." }, { status: 400, headers: corsHeaders })
       }
 
-      if (!resolvedName) {
-        resolvedName = googleProfile.name
+      if (!MATRICULA_PATTERN.test(matricula)) {
+        return jsonResponse({ error: "Use o formato 123456789/01 para a matricula." }, { status: 400, headers: corsHeaders })
       }
+
+      const user = await fetchUserByMatricula(matricula)
+      if (!user?.password_hash) {
+        return jsonResponse({ error: "Matricula ou senha incorretos." }, { status: 401, headers: corsHeaders })
+      }
+
+      const passwordMatches = await compare(password, user.password_hash)
+      if (!passwordMatches) {
+        return jsonResponse({ error: "Matricula ou senha incorretos." }, { status: 401, headers: corsHeaders })
+      }
+
+      await touchLastLogin(user.id)
+      const session = await createSession(user.id)
+      const enrollments = await loadEnrollments(user.id)
+
+      return jsonResponse({
+        authenticated: true,
+        token: session.token,
+        expiresAt: session.expiresAt,
+        profile: enrichProfile({
+          ...user,
+          metodo_login: getLoginMethodLabel(user.metodo_login),
+        }),
+        enrollments,
+        isAdmin: isAdminEmail(user.email),
+      }, { headers: corsHeaders })
     }
 
-    if (!resolvedName || !resolvedEmail || !numero || !matricula) {
-      return jsonResponse({ error: "Preencha nome completo, e-mail, numero e matricula." }, { status: 400, headers: corsHeaders })
+    if (action === "register") {
+      const nomeCompleto = normalizeText(body.nomeCompleto)
+      const email = normalizeEmail(body.email)
+      const matricula = normalizeText(body.matricula)
+      const password = normalizeText(body.password)
+      const confirmPassword = normalizeText(body.confirmPassword)
+
+      const validationMessage = validateRegistrationInput({
+        nomeCompleto,
+        email,
+        matricula,
+        password,
+        confirmPassword,
+      })
+
+      if (validationMessage) {
+        return jsonResponse({ error: validationMessage }, { status: 400, headers: corsHeaders })
+      }
+
+      const { emailConflict, matriculaConflict } = await findUserConflicts(email, matricula)
+      const legacyActivationCandidate = emailConflict?.id && emailConflict.id === matriculaConflict?.id && !emailConflict.password_hash
+
+      const conflictMessage = getConflictMessage(emailConflict, matriculaConflict)
+      if (conflictMessage && !legacyActivationCandidate) {
+        return jsonResponse({ error: conflictMessage }, { status: 409, headers: corsHeaders })
+      }
+
+      const passwordHash = await hash(password, 12)
+
+      const profileQuery = legacyActivationCandidate
+        ? adminClient
+          .from("portal_users")
+          .update({
+            nome_completo: nomeCompleto,
+            email,
+            matricula,
+            metodo_login: "senha",
+            password_hash: passwordHash,
+            ultimo_login_em: new Date().toISOString(),
+          })
+          .eq("id", emailConflict.id)
+        : adminClient
+          .from("portal_users")
+          .insert({
+            nome_completo: nomeCompleto,
+            email,
+            numero: "",
+            matricula,
+            metodo_login: "senha",
+            password_hash: passwordHash,
+            ultimo_login_em: new Date().toISOString(),
+          })
+
+      const { data: profile, error: insertError } = await profileQuery
+        .select("id, nome_completo, email, numero, matricula, metodo_login, created_at, updated_at")
+        .single()
+
+      const conflictMessageFromError = getConflictMessageFromError(insertError)
+      if (conflictMessageFromError) {
+        return jsonResponse({ error: conflictMessageFromError }, { status: 409, headers: corsHeaders })
+      }
+
+      if (insertError) throw insertError
+
+      const session = await createSession(profile.id)
+      return jsonResponse({
+        authenticated: true,
+        token: session.token,
+        expiresAt: session.expiresAt,
+        profile: enrichProfile({
+          ...(profile as PortalUser),
+          metodo_login: getLoginMethodLabel(profile.metodo_login),
+        }),
+        enrollments: [],
+        isAdmin: isAdminEmail(profile.email),
+      }, { headers: corsHeaders })
     }
 
     if (action === "update_profile") {
@@ -320,17 +466,34 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
       }
 
-      const { emailConflict, matriculaConflict } = await findUserConflicts(resolvedEmail, matricula, session.user.id)
-      const updateConflictMessage = getConflictMessage(emailConflict, matriculaConflict)
-      if (updateConflictMessage) {
-        return jsonResponse({ error: updateConflictMessage }, { status: 409, headers: corsHeaders })
+      const nomeCompleto = normalizeText(body.nomeCompleto)
+      const email = normalizeEmail(body.email)
+      const matricula = normalizeText(body.matricula)
+      const numero = normalizeText(body.numero) || normalizeText(session.user.numero)
+
+      if (!nomeCompleto || !email || !matricula) {
+        return jsonResponse({ error: "Preencha nome completo, e-mail e matricula." }, { status: 400, headers: corsHeaders })
+      }
+
+      if (!EMAIL_PATTERN.test(email)) {
+        return jsonResponse({ error: "Informe um email valido." }, { status: 400, headers: corsHeaders })
+      }
+
+      if (!MATRICULA_PATTERN.test(matricula)) {
+        return jsonResponse({ error: "Use o formato 123456789/01 para a matricula." }, { status: 400, headers: corsHeaders })
+      }
+
+      const { emailConflict, matriculaConflict } = await findUserConflicts(email, matricula, session.user.id)
+      const conflictMessage = getConflictMessage(emailConflict, matriculaConflict)
+      if (conflictMessage) {
+        return jsonResponse({ error: conflictMessage }, { status: 409, headers: corsHeaders })
       }
 
       const { data: profile, error: updateError } = await adminClient
         .from("portal_users")
         .update({
-          nome_completo: resolvedName,
-          email: resolvedEmail,
+          nome_completo: nomeCompleto,
+          email,
           numero,
           matricula,
         })
@@ -338,52 +501,27 @@ Deno.serve(async (req) => {
         .select("id, nome_completo, email, numero, matricula, metodo_login, created_at, updated_at")
         .single()
 
+      const conflictMessageFromError = getConflictMessageFromError(updateError)
+      if (conflictMessageFromError) {
+        return jsonResponse({ error: conflictMessageFromError }, { status: 409, headers: corsHeaders })
+      }
+
       if (updateError) throw updateError
 
       const enrollments = await loadEnrollments(profile.id)
       return jsonResponse({
         authenticated: true,
-        profile: enrichProfile(profile as PortalUser),
+        profile: enrichProfile({
+          ...(profile as PortalUser),
+          metodo_login: getLoginMethodLabel(profile.metodo_login),
+        }),
         enrollments,
         isAdmin: isAdminEmail(profile.email),
         expiresAt: session.expiresAt,
       }, { headers: corsHeaders })
     }
 
-    const { emailConflict, matriculaConflict } = await findUserConflicts(resolvedEmail, matricula)
-    const loginConflictMessage = getConflictMessage(emailConflict, matriculaConflict)
-    if (loginConflictMessage) {
-      return jsonResponse({ error: loginConflictMessage }, { status: 409, headers: corsHeaders })
-    }
-
-    const { data: profile, error: upsertError } = await adminClient
-      .from("portal_users")
-      .upsert({
-        nome_completo: resolvedName,
-        email: resolvedEmail,
-        numero,
-        matricula,
-        metodo_login: metodoLogin,
-        ultimo_login_em: new Date().toISOString(),
-      }, {
-        onConflict: "email",
-      })
-      .select("id, nome_completo, email, numero, matricula, metodo_login, created_at, updated_at")
-      .single()
-
-    if (upsertError) throw upsertError
-
-    const session = await createSession(profile.id)
-    const enrollments = await loadEnrollments(profile.id)
-
-    return jsonResponse({
-      authenticated: true,
-      token: session.token,
-      expiresAt: session.expiresAt,
-      profile: enrichProfile(profile as PortalUser),
-      enrollments,
-      isAdmin: isAdminEmail(profile.email),
-    }, { headers: corsHeaders })
+    return jsonResponse({ error: "Acao invalida." }, { status: 400, headers: corsHeaders })
   } catch (error) {
     return jsonResponse({
       error: error instanceof Error ? error.message : "Erro interno ao autenticar.",

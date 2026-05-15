@@ -131,13 +131,19 @@
     return payload;
   }
 
+  function getLoginMethodLabel(method) {
+    if (method === 'gmail') return 'Google OAuth';
+    if (method === 'dados') return 'Dados institucionais';
+    return 'Senha';
+  }
+
   function renderProfile(profile) {
     const entries = [
       ['Nome', profile.nome_completo],
       ['E-mail', profile.email],
       ['Matrícula', profile.matricula],
       ['Número', profile.numero],
-      ['Método de login', profile.metodo_login === 'gmail' ? 'Google OAuth' : 'Dados institucionais']
+      ['Método de login', getLoginMethodLabel(profile.metodo_login)]
     ];
 
     document.getElementById('profile-grid').innerHTML = entries.map(([label, value]) => `

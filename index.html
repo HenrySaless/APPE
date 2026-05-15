@@ -322,7 +322,7 @@
     <div class="auth-banner reveal" id="auth-banner">
       <div>
         <strong id="auth-banner-title">Faça login para se inscrever nos cursos</strong>
-        <p id="auth-banner-text">Entre com Gmail ou preencha nome completo, e-mail, número e número de matrícula para liberar a inscrição.</p>
+        <p id="auth-banner-text">Entre com sua matrícula e senha ou crie uma conta nova para liberar a inscrição.</p>
       </div>
       <div class="auth-banner-actions" id="auth-banner-actions">
         <a href="login.html" class="btn-primary">Ir para login</a>
@@ -580,13 +580,17 @@ function updateAuthBanner() {
 
   if (!currentUser) {
     title.textContent = 'Faça login para se inscrever nos cursos';
-    text.textContent = 'Entre com Gmail ou preencha nome completo, e-mail, número e número de matrícula para liberar a inscrição.';
+    text.textContent = 'Entre com sua matrícula e senha ou crie uma conta nova para liberar a inscrição.';
     actions.innerHTML = '<a href="login.html" class="btn-primary">Ir para login</a>';
     return;
   }
 
   const subscriptions = currentEnrollments.length;
-  const metodo = currentUser.metodo_login === 'gmail' ? 'Gmail' : 'dados institucionais';
+  const metodo = currentUser.metodo_login === 'gmail'
+    ? 'Google OAuth'
+    : currentUser.metodo_login === 'dados'
+      ? 'dados institucionais'
+      : 'senha';
   title.textContent = `Bem-vindo, ${currentUser.nome_completo}`;
   text.textContent = `Acesso liberado por ${metodo}. Voce ja possui ${subscriptions} inscricao(oes) vinculada(s) a matricula ${currentUser.matricula}.`;
   const adminAction = currentUser.isAdmin ? '<a href="admin.html" class="btn-tertiary">Painel admin</a>' : '';

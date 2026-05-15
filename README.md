@@ -4,14 +4,14 @@ Site para aplicação prática de inscrição em cursos na academia de polícia 
 
 Portal estático (HTML/CSS/JS) com backend mínimo em Supabase Edge Functions para:
 - login persistente com sessão;
-- autenticação Google OAuth (ID Token);
+- autenticação própria com login e cadastro separados;
 - inscrições em cursos com persistência;
 - dashboard do usuário autenticado.
 
 ## Estrutura
 
 - `index.html`: listagem de cursos e inscrição.
-- `login.html`: login institucional + Google OAuth.
+- `login.html`: tela única com alternância entre login e cadastro.
 - `dashboard.html`: área pós-login com perfil e inscrições.
 - `profile.html`: atualização dos dados da própria conta.
 - `admin.html`: painel administrativo com inscritos por curso.
@@ -23,7 +23,6 @@ Portal estático (HTML/CSS/JS) com backend mínimo em Supabase Edge Functions pa
 
 - Supabase CLI
 - Projeto Supabase criado
-- Conta Google Cloud para OAuth Web Client
 
 ## Configuração
 
@@ -42,7 +41,6 @@ supabase db push
 supabase secrets set \
   SUPABASE_URL=https://<SEU_PROJECT_REF>.supabase.co \
   SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY> \
-  GOOGLE_OAUTH_CLIENT_ID=<CLIENT_ID_GOOGLE_OPCIONAL> \
   PORTAL_ADMIN_EMAILS=<EMAIL_ADMIN_1,EMAIL_ADMIN_2> \
   RESEND_API_KEY=<OPCIONAL_PARA_EMAIL> \
   PORTAL_SENDER_EMAIL=<OPCIONAL> \
@@ -59,9 +57,8 @@ supabase functions deploy portal-enroll
 - Edite `appe.config.js`.
 - Defina `functionsBaseUrl` com a URL das Edge Functions do projeto.
 - Defina `supabaseAnonKey` com a chave pública `anon` do projeto para o gateway das Edge Functions.
-- Defina `googleClientId` apenas se quiser habilitar Google OAuth no botão de Gmail.
 - Defina `PORTAL_ADMIN_EMAILS` nos segredos do Supabase para liberar acesso ao `admin.html`.
-- Sem `googleClientId`, o portal continua funcional com login por dados institucionais.
+- A função `portal-auth` agora usa matrícula + senha no login e valida cadastro com e-mail e matrícula únicos.
 
 ## Executar localmente
 
@@ -77,10 +74,8 @@ Abra:
 - `http://localhost:5173/profile.html`
 - `http://localhost:5173/admin.html`
 
-## Observações OAuth Google
+## Observações de autenticação
 
-- No Google Cloud, adicione `http://localhost:5173` em **Authorized JavaScript origins**.
-- Em produção, inclua o domínio real da aplicação.
-- O backend valida `id_token` no Google e confere `aud` com `GOOGLE_OAUTH_CLIENT_ID`.
-- O arquivo `appe.config.js` pode ser versionado, porque o Client ID OAuth Web é público e nao e segredo.
-- O unico segredo para envio real de confirmacao por e-mail continua sendo `RESEND_API_KEY`.
+- O cadastro exige nome completo, e-mail, matrícula, senha e confirmação de senha.
+- A senha é armazenada apenas como hash no backend.
+- Em produção, mantenha `PORTAL_ADMIN_EMAILS`, `SUPABASE_SERVICE_ROLE_KEY` e `RESEND_API_KEY` apenas nos segredos do Supabase.

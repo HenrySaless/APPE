@@ -186,6 +186,12 @@
     return payload;
   }
 
+  function getLoginMethodLabel(method) {
+    if (method === 'gmail') return 'Google OAuth';
+    if (method === 'dados') return 'Dados institucionais';
+    return 'Senha';
+  }
+
   function setStatus(message, type) {
     statusBox.textContent = message;
     statusBox.className = `status${type ? ` ${type}` : ''}`;
@@ -196,7 +202,7 @@
     document.getElementById('email').value = profile.email || '';
     document.getElementById('numero').value = profile.numero || '';
     document.getElementById('matricula').value = profile.matricula || '';
-    document.getElementById('login-method').textContent = `Método de login atual: ${profile.metodo_login === 'gmail' ? 'Google OAuth' : 'Dados institucionais'}.`;
+    document.getElementById('login-method').textContent = `Método de login atual: ${getLoginMethodLabel(profile.metodo_login)}.`;
     adminLink.style.display = profile.isAdmin ? 'inline-flex' : 'none';
     form.style.display = 'grid';
   }
