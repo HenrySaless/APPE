@@ -100,6 +100,22 @@
     letter-spacing: 0.05em;
   }
   .empty { color: var(--muted); }
+  .table-actions {
+    width: 150px;
+  }
+  .remove-btn {
+    border: 1px solid rgba(192,41,42,0.18);
+    background: rgba(192,41,42,0.08);
+    color: var(--red);
+    border-radius: 10px;
+    padding: 0.55rem 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .remove-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
 </style>
 </head>
 <body>
@@ -123,6 +139,7 @@
   const AUTH_STORAGE_KEY = 'appePortalSession';
   const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
   const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
+  let adminCourses = [];
 
   function getStoredSession() {
     try {
@@ -167,6 +184,7 @@
 
   function renderCourses(courses) {
     const container = document.getElementById('courses');
+    adminCourses = courses;
 
     if (!courses.length) {
       container.innerHTML = '<p class="empty">Nenhuma inscrição registrada até o momento.</p>';
@@ -187,6 +205,7 @@
             <tr>
               <th>Nome</th>
               <th>Matrícula</th>
+              <th class="table-actions">Ação</th>
             </tr>
           </thead>
           <tbody>
@@ -194,12 +213,56 @@
               <tr>
                 <td>${person.nome_completo}</td>
                 <td>${person.matricula}</td>
+                <td>
+                  <button
+                    type="button"
+                    class="remove-btn"
+                    data-enrollment-id="${person.enrollment_id}"
+                    data-student-name="${person.nome_completo}"
+                    data-course-title="${course.course_title}"
+                  >
+                    Excluir
+                  </button>
+                </td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       </article>
     `).join('');
+  }
+
+  async function reloadAdminCourses(sessionToken, successMessage) {
+    const payload = await callPortalAuth({ action: 'admin_enrollments' }, sessionToken);
+    renderCourses(payload.courses || []);
+    setStatus(successMessage || 'Painel administrativo carregado com sucesso.');
+  }
+
+  async function removeEnrollment(button) {
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const enrollmentId = button.dataset.enrollmentId;
+    const studentName = button.dataset.studentName || 'este aluno';
+    const courseTitle = button.dataset.courseTitle || 'este curso';
+
+    const confirmed = window.confirm(`Deseja excluir ${studentName} do curso "${courseTitle}"?`);
+    if (!confirmed) return;
+
+    button.disabled = true;
+    button.textContent = 'Excluindo...';
+
+    try {
+      await callPortalAuth({ action: 'admin_remove_enrollment', enrollmentId }, session.token);
+      await reloadAdminCourses(session.token, `Inscrição de ${studentName} removida com sucesso.`);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Excluir';
+      setStatus(error.message || 'Nao foi possivel excluir a inscrição.', 'error');
+    }
   }
 
   async function boot() {
@@ -231,6 +294,12 @@
       window.location.href = 'login.html';
     }
   }
+
+  document.getElementById('courses').addEventListener('click', (event) => {
+    const button = event.target.closest('.remove-btn');
+    if (!button) return;
+    removeEnrollment(button);
+  });
 
   boot();
 </script>

@@ -1,5 +1,3 @@
-import { compare, hash } from "npm:bcryptjs@2.4.3"
-
 import { adminClient, jsonResponse, sha256Hex } from "../_shared/db.ts"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
 
@@ -7,6 +5,7 @@ const SESSION_DAYS = 7
 const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
 const MATRICULA_PATTERN = /^\d{9}\/\d{2}$/
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PASSWORD_HASH_ITERATIONS = 120000
 
 type PortalUser = {
   id: string
@@ -109,6 +108,79 @@ function validateRegistrationInput(payload: {
   }
 
   return null
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+function hexToBytes(hex: string) {
+  const pairs = hex.match(/.{1,2}/g) ?? []
+  return new Uint8Array(pairs.map((pair) => Number.parseInt(pair, 16)))
+}
+
+async function hashPassword(password: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  )
+
+  const derivedBits = await crypto.subtle.deriveBits({
+    name: "PBKDF2",
+    salt,
+    iterations: PASSWORD_HASH_ITERATIONS,
+    hash: "SHA-256",
+  }, keyMaterial, 256)
+
+  const digest = new Uint8Array(derivedBits)
+  return `pbkdf2_sha256$${PASSWORD_HASH_ITERATIONS}$${bytesToHex(salt)}$${bytesToHex(digest)}`
+}
+
+async function verifyPassword(password: string, passwordHash: string) {
+  const [algorithm, iterationsRaw, saltHex, digestHex] = passwordHash.split("$")
+  if (algorithm !== "pbkdf2_sha256" || !iterationsRaw || !saltHex || !digestHex) {
+    return false
+  }
+
+  const iterations = Number.parseInt(iterationsRaw, 10)
+  if (!Number.isFinite(iterations) || iterations <= 0) {
+    return false
+  }
+
+  const salt = hexToBytes(saltHex)
+  const expectedDigest = hexToBytes(digestHex)
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  )
+
+  const derivedBits = await crypto.subtle.deriveBits({
+    name: "PBKDF2",
+    salt,
+    iterations,
+    hash: "SHA-256",
+  }, keyMaterial, expectedDigest.byteLength * 8)
+
+  const actualDigest = new Uint8Array(derivedBits)
+  if (actualDigest.byteLength !== expectedDigest.byteLength) {
+    return false
+  }
+
+  let mismatch = 0
+  for (let index = 0; index < actualDigest.length; index += 1) {
+    mismatch |= actualDigest[index] ^ expectedDigest[index]
+  }
+
+  return mismatch === 0
 }
 
 async function findUserConflicts(email: string, matricula: string, ignoreUserId?: string) {
@@ -217,6 +289,7 @@ async function loadAdminEnrollments() {
   const { data, error } = await adminClient
     .from("course_enrollments")
     .select(`
+      id,
       course_id,
       course_title,
       course_mode,
@@ -237,7 +310,7 @@ async function loadAdminEnrollments() {
     course_title: string
     course_mode: string
     course_date: string
-    inscritos: Array<{ nome_completo: string, matricula: string }>
+    inscritos: Array<{ enrollment_id: string, nome_completo: string, matricula: string }>
   }>()
 
   for (const item of data ?? []) {
@@ -256,12 +329,22 @@ async function loadAdminEnrollments() {
     }
 
     grouped.get(groupKey)?.inscritos.push({
+      enrollment_id: item.id,
       nome_completo: user.nome_completo,
       matricula: user.matricula,
     })
   }
 
   return [...grouped.values()]
+}
+
+async function removeEnrollmentAsAdmin(enrollmentId: string) {
+  const { error } = await adminClient
+    .from("course_enrollments")
+    .delete()
+    .eq("id", enrollmentId)
+
+  if (error) throw error
 }
 
 async function fetchUserByMatricula(matricula: string) {
@@ -343,6 +426,28 @@ Deno.serve(async (req) => {
       }, { headers: corsHeaders })
     }
 
+    if (action === "admin_remove_enrollment") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
+
+      if (!isAdminEmail(session.user.email)) {
+        return jsonResponse({ error: "Acesso restrito a administradores." }, { status: 403, headers: corsHeaders })
+      }
+
+      const enrollmentId = normalizeText(body.enrollmentId)
+      if (!enrollmentId) {
+        return jsonResponse({ error: "Inscricao invalida." }, { status: 400, headers: corsHeaders })
+      }
+
+      await removeEnrollmentAsAdmin(enrollmentId)
+
+      return jsonResponse({
+        success: true,
+      }, { headers: corsHeaders })
+    }
+
     if (action === "login") {
       const matricula = normalizeText(body.matricula)
       const password = normalizeText(body.password)
@@ -360,7 +465,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Matricula ou senha incorretos." }, { status: 401, headers: corsHeaders })
       }
 
-      const passwordMatches = await compare(password, user.password_hash)
+      const passwordMatches = await verifyPassword(password, user.password_hash)
       if (!passwordMatches) {
         return jsonResponse({ error: "Matricula ou senha incorretos." }, { status: 401, headers: corsHeaders })
       }
@@ -409,7 +514,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: conflictMessage }, { status: 409, headers: corsHeaders })
       }
 
-      const passwordHash = await hash(password, 12)
+      const passwordHash = await hashPassword(password)
 
       const profileQuery = legacyActivationCandidate
         ? adminClient
