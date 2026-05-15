@@ -57,7 +57,57 @@
     margin-bottom: 1rem;
   }
   .status.error { background: rgba(192,41,42,0.12); color: var(--red); }
+  .status.success { background: rgba(22,101,52,0.12); color: #166534; }
   .courses { display: grid; gap: 1rem; }
+  .admin-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 380px) 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+  .admin-panel {
+    background: rgba(255,255,255,0.86);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 1rem;
+  }
+  .admin-panel h2 {
+    color: var(--navy);
+    font-size: 1rem;
+    margin-bottom: 0.35rem;
+  }
+  .admin-panel p {
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.9rem;
+  }
+  .field label {
+    color: var(--navy);
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+  .field input, .field textarea, .field select {
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    padding: 0.8rem 0.9rem;
+    font: inherit;
+    background: #fff;
+  }
+  .field textarea {
+    min-height: 110px;
+    resize: vertical;
+  }
+  .field .helper {
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
   .course-card {
     background: rgba(255,255,255,0.86);
     border: 1px solid var(--line);
@@ -79,6 +129,40 @@
   .course-meta {
     color: var(--muted);
     font-size: 0.92rem;
+  }
+  .course-description {
+    color: var(--text);
+    line-height: 1.6;
+    margin-bottom: 0.9rem;
+  }
+  .course-admin-actions {
+    display: flex;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: rgba(28,31,107,0.08);
+    color: var(--navy);
+  }
+  .pill.closed {
+    background: rgba(192,41,42,0.12);
+    color: var(--red);
+  }
+  .toggle-btn {
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--navy);
+    border-radius: 10px;
+    padding: 0.55rem 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
   }
   table {
     width: 100%;
@@ -116,6 +200,11 @@
     opacity: 0.6;
     cursor: wait;
   }
+  @media (max-width: 900px) {
+    .admin-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 </head>
 <body>
@@ -130,7 +219,54 @@
     </div>
 
     <p class="status" id="status">Validando sessão administrativa...</p>
-    <section class="courses" id="courses"></section>
+
+    <div class="admin-grid">
+      <section class="admin-panel">
+        <h2>Novo curso</h2>
+        <p>Crie um curso novo com descrição, instrutor, horário exato e modalidade. Cursos novos já nascem com inscrições abertas.</p>
+
+        <form id="course-form">
+          <div class="field">
+            <label for="course-title">Nome do curso</label>
+            <input id="course-title" name="title" type="text" required>
+          </div>
+
+          <div class="field">
+            <label for="course-description">Descrição</label>
+            <textarea id="course-description" name="description" required></textarea>
+          </div>
+
+          <div class="field">
+            <label for="course-instructor">Instrutor</label>
+            <input id="course-instructor" name="instructorName" type="text" required>
+          </div>
+
+          <div class="field">
+            <label for="course-starts-at">Dia, mês e horário</label>
+            <input id="course-starts-at" name="startsAt" type="datetime-local" required>
+            <span class="helper">Este horário aparece para todos os usuários e controla a ordenação dos cursos.</span>
+          </div>
+
+          <div class="field">
+            <label for="course-modality">Modalidade</label>
+            <select id="course-modality" name="modality" required>
+              <option value="online">Online</option>
+              <option value="presencial">Presencial</option>
+              <option value="ambos">Ambos</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="course-location">Local</label>
+            <input id="course-location" name="location" type="text" placeholder="Opcional para online">
+          </div>
+
+          <button class="btn primary" type="submit">Criar curso</button>
+        </form>
+      </section>
+
+      <section class="courses" id="courses"></section>
+    </div>
   </main>
 
 <script src="appe.config.js"></script>
@@ -182,6 +318,20 @@
     element.className = `status${type ? ` ${type}` : ''}`;
   }
 
+  function formatCourseDate(value) {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(value));
+  }
+
+  function getStatusLabel(status) {
+    return status === 'encerrado' ? 'Vagas encerradas' : 'Inscrições abertas';
+  }
+
   function renderCourses(courses) {
     const container = document.getElementById('courses');
     adminCourses = courses;
@@ -195,10 +345,23 @@
       <article class="course-card">
         <div class="course-header">
           <div>
-            <div class="course-title">${course.course_title}</div>
-            <div class="course-meta">Modalidade: ${course.course_mode} | Data: ${course.course_date}</div>
+            <div class="course-title">${course.title}</div>
+            <div class="course-meta">Modalidade: ${course.modality} | Data: ${formatCourseDate(course.starts_at)} | Instrutor: ${course.instructor_name}</div>
           </div>
           <div class="course-meta">${course.inscritos.length} inscrito(s)</div>
+        </div>
+        <p class="course-description">${course.description}</p>
+        <div class="course-admin-actions">
+          <span class="pill ${course.status === 'encerrado' ? 'closed' : ''}">${getStatusLabel(course.status)}</span>
+          <button
+            type="button"
+            class="toggle-btn"
+            data-course-id="${course.id}"
+            data-course-title="${course.title}"
+            data-next-status="${course.status === 'encerrado' ? 'aberto' : 'encerrado'}"
+          >
+            ${course.status === 'encerrado' ? 'Reabrir vagas' : 'Encerrar vagas'}
+          </button>
         </div>
         <table>
           <thead>
@@ -219,7 +382,7 @@
                     class="remove-btn"
                     data-enrollment-id="${person.enrollment_id}"
                     data-student-name="${person.nome_completo}"
-                    data-course-title="${course.course_title}"
+                    data-course-title="${course.title}"
                   >
                     Excluir
                   </button>
@@ -233,7 +396,7 @@
   }
 
   async function reloadAdminCourses(sessionToken, successMessage) {
-    const payload = await callPortalAuth({ action: 'admin_enrollments' }, sessionToken);
+    const payload = await callPortalAuth({ action: 'admin_list_courses' }, sessionToken);
     renderCourses(payload.courses || []);
     setStatus(successMessage || 'Painel administrativo carregado com sucesso.');
   }
@@ -265,6 +428,32 @@
     }
   }
 
+  async function updateCourseStatus(button) {
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const courseId = button.dataset.courseId;
+    const courseTitle = button.dataset.courseTitle || 'este curso';
+    const nextStatus = button.dataset.nextStatus;
+    const actionLabel = nextStatus === 'encerrado' ? 'encerrar as vagas de' : 'reabrir as vagas de';
+
+    const confirmed = window.confirm(`Deseja ${actionLabel} "${courseTitle}"?`);
+    if (!confirmed) return;
+
+    button.disabled = true;
+
+    try {
+      await callPortalAuth({ action: 'admin_update_course_status', courseId, status: nextStatus }, session.token);
+      await reloadAdminCourses(session.token, `Status do curso "${courseTitle}" atualizado com sucesso.`);
+    } catch (error) {
+      button.disabled = false;
+      setStatus(error.message || 'Nao foi possivel atualizar o curso.', 'error');
+    }
+  }
+
   async function boot() {
     const session = getStoredSession();
     if (!session?.token) {
@@ -281,7 +470,7 @@
         return;
       }
 
-      const payload = await callPortalAuth({ action: 'admin_enrollments' }, session.token);
+      const payload = await callPortalAuth({ action: 'admin_list_courses' }, session.token);
       renderCourses(payload.courses || []);
       setStatus('Painel administrativo carregado com sucesso.');
     } catch (error) {
@@ -297,8 +486,43 @@
 
   document.getElementById('courses').addEventListener('click', (event) => {
     const button = event.target.closest('.remove-btn');
-    if (!button) return;
-    removeEnrollment(button);
+    if (button) {
+      removeEnrollment(button);
+      return;
+    }
+
+    const toggleButton = event.target.closest('.toggle-btn');
+    if (toggleButton) {
+      updateCourseStatus(toggleButton);
+    }
+  });
+
+  document.getElementById('course-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const startsAtValue = document.getElementById('course-starts-at').value;
+    try {
+      await callPortalAuth({
+        action: 'admin_create_course',
+        title: document.getElementById('course-title').value.trim(),
+        description: document.getElementById('course-description').value.trim(),
+        instructorName: document.getElementById('course-instructor').value.trim(),
+        startsAt: new Date(startsAtValue).toISOString(),
+        modality: document.getElementById('course-modality').value,
+        location: document.getElementById('course-location').value.trim()
+      }, session.token);
+
+      event.target.reset();
+      await reloadAdminCourses(session.token, 'Curso criado com sucesso.');
+    } catch (error) {
+      setStatus(error.message || 'Nao foi possivel criar o curso.', 'error');
+    }
   });
 
   boot();

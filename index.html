@@ -256,7 +256,7 @@
     <a href="#cursos" class="active">Cursos Online</a>
     <a href="#presenciais">Cursos Presenciais</a>
     <a href="#sobre">Sobre</a>
-    <a href="login.html" class="nav-cta">Login / Inscrição</a>
+    <div id="nav-auth-actions"><a href="login.html" class="nav-cta">Login / Inscrição</a></div>
   </div>
 </nav>
 
@@ -273,7 +273,7 @@
     <p class="hero-sub">Formação contínua e capacitação profissional para os servidores da Polícia Penal do Estado de Pernambuco.</p>
     <div class="hero-actions">
       <a href="#cursos" class="btn-primary">Ver Cursos Online →</a>
-      <a href="login.html" class="btn-secondary">Fazer login para se inscrever</a>
+      <div id="hero-auth-actions"><a href="login.html" class="btn-secondary">Fazer login para se inscrever</a></div>
     </div>
     <div class="hero-stats">
       <div class="stat"><span class="stat-num">40+</span><span class="stat-label">Cursos em 2026</span></div>
@@ -384,7 +384,7 @@
     <a href="#cursos">Cursos Online</a>
     <a href="#cursos" onclick="switchPage('presencial',document.querySelectorAll('.page-tab')[1])">Cursos Presenciais</a>
     <a href="#sobre">Sobre</a>
-    <a href="login.html">Login / Inscrição</a>
+    <span id="footer-auth-actions"><a href="login.html">Login / Inscrição</a></span>
   </div>
   <hr class="footer-divider">
   <p class="footer-copy">© 2026 Academia de Polícia Penal de Pernambuco. Todos os direitos reservados.</p>
@@ -392,7 +392,7 @@
 
 <script src="appe.config.js"></script>
 <script>
-const ONLINE = [
+let ONLINE = [
   {month:'fevereiro',label:'Fevereiro 2026',title:'Conselho Disciplinar',instrutor:'Rita de Cássia',data:'26 e 27/02',status:'encerrado',horas:'16H',local:null},
   {month:'marco',label:'Março 2026',title:'Finanças na Carreira Penal — Módulo 1',instrutor:'Heber Judson',data:'03 e 04/03',status:'encerrado',horas:'16H',local:null},
   {month:'marco',label:'Março 2026',title:'Racismo Institucional',instrutor:'Euclides Ferreira',data:'12 e 13/03',status:'encerrado',horas:'16H',local:null},
@@ -407,7 +407,7 @@ const ONLINE = [
   {month:'junho',label:'Próximos meses',title:'Em breve — Junho e além',instrutor:'A definir',data:'Jun–Dez / 2026',status:'aberto',horas:'16H',local:null},
 ];
 
-const PRESENCIAL = [
+let PRESENCIAL = [
   {month:'janeiro',label:'Janeiro 2026',title:'Alinhamento Técnico Profissional',instrutor:'APPE',data:'26 e 30/01',status:'encerrado',horas:'16H',local:'APPE/SEAP'},
   {month:'fevereiro',label:'Fevereiro 2026',title:'Alinhamento Técnico Profissional',instrutor:'APPE',data:'02 e 06/02',status:'encerrado',horas:'16H',local:'APPE/SEAP'},
   {month:'fevereiro',label:'Fevereiro 2026',title:'Monitoramento Eletrônico de Pessoas — T1',instrutor:'Alony',data:'24 e 25/02',status:'encerrado',horas:'16H',local:'APPE/SEAP'},
@@ -441,7 +441,7 @@ const PRESENCIAL = [
   {month:'junho',label:'Próximos meses',title:'Em breve — Junho e além',instrutor:'A definir',data:'Jun–Dez / 2026',status:'aberto',horas:'16H',local:'A definir'},
 ];
 
-const statusLabel = {encerrado:'Encerrado', esgotado:'Vagas esgotadas', aberto:'Inscricoes abertas'};
+const statusLabel = {encerrado:'Vagas encerradas', aberto:'Inscricoes abertas'};
 const PORTAL_CONFIG = window.APPE_CONFIG || {};
 const AUTH_STORAGE_KEY = 'appePortalSession';
 const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
@@ -451,6 +451,43 @@ let currentFilterOnline = 'todos';
 let currentFilterPresencial = 'todos';
 let currentUser = null;
 let currentEnrollments = [];
+
+const monthNames = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+function formatCourseDateTime(value) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(new Date(value));
+}
+
+function formatCourseLabel(value) {
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'long',
+    year: 'numeric'
+  }).format(new Date(value)).replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function transformCourse(record) {
+  const startsAt = new Date(record.starts_at);
+  return {
+    id: record.id,
+    title: record.title,
+    description: record.description,
+    instrutor: record.instructor_name,
+    data: formatCourseDateTime(record.starts_at),
+    startsAt: record.starts_at,
+    label: formatCourseLabel(record.starts_at),
+    month: monthNames[startsAt.getMonth()],
+    status: record.status,
+    horas: startsAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    local: record.location,
+    modality: record.modality
+  };
+}
 
 function getStoredSession() {
   try {
@@ -489,13 +526,36 @@ async function callPortalFunction(functionName, body, token) {
   return payload;
 }
 
-function courseId(course, page) {
-  return `${page}:${course.title}:${course.data}`;
+async function loadCoursesFromBackend() {
+  try {
+    const payload = await callPortalFunction('portal-auth', { action: 'list_courses' });
+    const onlineCourses = [];
+    const presencialCourses = [];
+
+    (payload.courses || []).forEach((course) => {
+      const transformed = transformCourse(course);
+      if (course.modality === 'online' || course.modality === 'ambos') {
+        onlineCourses.push(transformed);
+      }
+      if (course.modality === 'presencial' || course.modality === 'ambos') {
+        presencialCourses.push(transformed);
+      }
+    });
+
+    ONLINE = onlineCourses;
+    PRESENCIAL = presencialCourses;
+  } catch (error) {
+    console.warn('Nao foi possivel carregar cursos do backend, usando fallback local.', error);
+  }
+}
+
+function courseId(course) {
+  return course.id;
 }
 
 function isSubscribed(course, page) {
   if (!currentUser) return false;
-  return currentEnrollments.some((item) => item.course_id === courseId(course, page));
+  return currentEnrollments.some((item) => item.course_id === courseId(course));
 }
 
 function goToLogin(course, page) {
@@ -514,8 +574,8 @@ async function subscribeCourse(course, page) {
     return;
   }
 
-  if (course.status === 'encerrado' || course.status === 'esgotado') {
-    showFeedback(`As inscricoes para "${course.title}" nao estao disponiveis no momento.`);
+  if (course.status === 'encerrado') {
+    showFeedback(`Vagas encerradas para "${course.title}".`);
     renderCourses(currentPage, currentPage === 'online' ? currentFilterOnline : currentFilterPresencial);
     return;
   }
@@ -527,20 +587,13 @@ async function subscribeCourse(course, page) {
 
   try {
     const payload = await callPortalFunction('portal-enroll', {
-      courseId: courseId(course, page),
-      title: course.title,
-      modalidade: page,
-      data: course.data,
-      label: course.label,
-      status: course.status,
-      local: course.local,
-      instrutor: course.instrutor
+      courseId: courseId(course)
     }, session.token);
 
     currentEnrollments.unshift({
-      course_id: courseId(course, page),
+      course_id: courseId(course),
       course_title: course.title,
-      course_mode: page,
+      course_mode: course.modality || page,
       course_date: course.data,
       created_at: new Date().toISOString()
     });
@@ -582,6 +635,12 @@ function updateAuthBanner() {
     title.textContent = 'Faça login para se inscrever nos cursos';
     text.textContent = 'Entre com sua matrícula e senha ou crie uma conta nova para liberar a inscrição.';
     actions.innerHTML = '<a href="login.html" class="btn-primary">Ir para login</a>';
+    const navActions = document.getElementById('nav-auth-actions');
+    const heroActions = document.getElementById('hero-auth-actions');
+    const footerActions = document.getElementById('footer-auth-actions');
+    if (navActions) navActions.innerHTML = '<a href="login.html" class="nav-cta">Login / Inscrição</a>';
+    if (heroActions) heroActions.innerHTML = '<a href="login.html" class="btn-secondary">Fazer login para se inscrever</a>';
+    if (footerActions) footerActions.innerHTML = '<a href="login.html">Login / Inscrição</a>';
     return;
   }
 
@@ -594,7 +653,13 @@ function updateAuthBanner() {
   title.textContent = `Bem-vindo, ${currentUser.nome_completo}`;
   text.textContent = `Acesso liberado por ${metodo}. Voce ja possui ${subscriptions} inscricao(oes) vinculada(s) a matricula ${currentUser.matricula}.`;
   const adminAction = currentUser.isAdmin ? '<a href="admin.html" class="btn-tertiary">Painel admin</a>' : '';
-  actions.innerHTML = `<a href="dashboard.html" class="btn-tertiary">Abrir dashboard</a><a href="profile.html" class="btn-tertiary">Atualizar cadastro</a>${adminAction}<button type="button" class="btn-tertiary" onclick="logoutPortal()">Sair</button>`;
+  actions.innerHTML = `<a href="dashboard.html" class="btn-tertiary">Ver meus cursos</a>${adminAction}<button type="button" class="btn-tertiary" onclick="logoutPortal()">Sair</button>`;
+  const navActions = document.getElementById('nav-auth-actions');
+  const heroActions = document.getElementById('hero-auth-actions');
+  const footerActions = document.getElementById('footer-auth-actions');
+  if (navActions) navActions.innerHTML = '<a href="dashboard.html" class="nav-cta">Ver meus cursos</a><button type="button" class="btn-tertiary" onclick="logoutPortal()" style="margin-left:8px;">Sair</button>';
+  if (heroActions) heroActions.innerHTML = '<a href="dashboard.html" class="btn-secondary">Ver meus cursos</a><button type="button" class="btn-secondary" onclick="logoutPortal()" style="margin-left:8px;">Sair</button>';
+  if (footerActions) footerActions.innerHTML = '<a href="dashboard.html">Ver meus cursos</a> · <a href="#" onclick="logoutPortal(); return false;">Sair</a>';
 }
 
 function getPendingCourseMessage() {
@@ -678,12 +743,12 @@ function renderCourses(page, filter) {
     if (filter === 'todos') html += `<div class="month-group-label">${label}</div>`;
     items.forEach(c => {
       const tagClass = isPresencial ? 'tag-presencial' : 'tag-online';
-      const tagText = isPresencial ? 'Presencial' : 'Online';
+      const tagText = c.modality === 'ambos' ? 'Ambos' : isPresencial ? 'Presencial' : 'Online';
       const cardClass = isPresencial ? 'presencial-card' : 'online-card';
       const localRow = c.local ? `<div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1C5.8 1 4 2.8 4 5c0 3.3 4 8 4 8s4-4.7 4-8c0-2.2-1.8-4-4-4z"/><circle cx="8" cy="5" r="1.5"/></svg>${c.local}</div>` : '';
       const subscribed = isSubscribed(c, page);
-      const unavailableCourse = c.status === 'encerrado' || c.status === 'esgotado';
-      const actionLabel = subscribed ? 'Inscricao realizada' : unavailableCourse ? (c.status === 'esgotado' ? 'Vagas esgotadas' : 'Inscricoes encerradas') : 'Inscrever-se';
+      const unavailableCourse = c.status === 'encerrado';
+      const actionLabel = subscribed ? 'Inscricao realizada' : unavailableCourse ? 'Vagas encerradas' : 'Inscrever-se';
       html += `<div class="course-card ${cardClass}" style="animation:cardIn 0.4s ease both">
         <div class="course-card-header">
           <span class="course-tag ${tagClass}">${tagText}</span>
@@ -693,11 +758,12 @@ function renderCourses(page, filter) {
         <div class="course-meta">
           <div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>${c.instrutor}</div>
           <div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5 1v4M11 1v4M2 7h12"/></svg>${c.data}</div>
+          <div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h12"/><path d="M8 2v12"/></svg>${c.description}</div>
           ${localRow}
         </div>
         <div class="course-footer">
           <div class="course-actions">
-            <span class="course-hours">Turma · ${c.horas}</span>
+            <span class="course-hours">Horário · ${c.horas}</span>
             ${c.local ? `<span class="course-local">📍 ${c.local}</span>` : ''}
             <button class="course-enroll" ${(subscribed || unavailableCourse) ? 'disabled' : ''} onclick='subscribeCourse(${JSON.stringify(c)}, "${page}")'>${actionLabel}</button>
           </div>
@@ -709,6 +775,7 @@ function renderCourses(page, filter) {
 }
 
 async function bootPortal() {
+  await loadCoursesFromBackend();
   renderCourses('online', 'todos');
   await initPortalSession();
 

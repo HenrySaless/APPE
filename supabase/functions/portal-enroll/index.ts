@@ -37,6 +37,17 @@ async function getSession(req: Request) {
   return { user }
 }
 
+function formatCourseDate(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Recife",
+  }).format(new Date(value))
+}
+
 async function sendConfirmationEmail(payload: {
   email: string
   name: string
@@ -114,21 +125,36 @@ Deno.serve(async (req) => {
 
     const body = await req.json()
     const courseId = String(body.courseId ?? "").trim()
-    const courseTitle = String(body.title ?? "").trim()
-    const courseMode = body.modalidade === "presencial" ? "presencial" : "online"
-    const courseDate = String(body.data ?? "").trim()
-    const courseLabel = String(body.label ?? "").trim() || null
-    const courseStatus = String(body.status ?? "").trim()
-    const courseLocation = String(body.local ?? "").trim() || null
-    const courseInstructor = String(body.instrutor ?? "").trim() || null
-
-    if (!courseId || !courseTitle || !courseDate) {
-      return jsonResponse({ error: "Dados do curso incompletos." }, { status: 400, headers: corsHeaders })
+    if (!courseId) {
+      return jsonResponse({ error: "Curso invalido." }, { status: 400, headers: corsHeaders })
     }
 
-    if (courseStatus === "encerrado" || courseStatus === "esgotado") {
-      return jsonResponse({ error: "As inscricoes para este curso nao estao disponiveis no momento." }, { status: 400, headers: corsHeaders })
+    const { data: course, error: courseError } = await adminClient
+      .from("portal_courses")
+      .select("id, title, description, instructor_name, starts_at, modality, location, status")
+      .eq("id", courseId)
+      .maybeSingle()
+
+    if (courseError) throw courseError
+    if (!course) {
+      return jsonResponse({ error: "Curso nao encontrado." }, { status: 404, headers: corsHeaders })
     }
+
+    if (course.status === "encerrado") {
+      return jsonResponse({ error: "Vagas encerradas para este curso." }, { status: 400, headers: corsHeaders })
+    }
+
+    const courseTitle = String(course.title)
+    const courseMode = String(course.modality)
+    const courseDate = formatCourseDate(course.starts_at)
+    const courseLabel = new Intl.DateTimeFormat("pt-BR", {
+      month: "long",
+      year: "numeric",
+      timeZone: "America/Recife",
+    }).format(new Date(course.starts_at))
+    const courseStatus = String(course.status)
+    const courseLocation = course.location ? String(course.location) : null
+    const courseInstructor = String(course.instructor_name)
 
     const calendarUrl = buildGoogleCalendarUrl({
       title: courseTitle,

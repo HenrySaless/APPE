@@ -22,6 +22,19 @@ type PortalUserRow = PortalUser & {
   password_hash?: string | null
 }
 
+type PortalCourse = {
+  id: string
+  title: string
+  description: string
+  instructor_name: string
+  starts_at: string
+  modality: "online" | "presencial" | "ambos"
+  location: string | null
+  status: "aberto" | "encerrado"
+  created_at: string
+  updated_at: string
+}
+
 function normalizeEmail(value: unknown) {
   return String(value ?? "").trim().toLowerCase()
 }
@@ -285,6 +298,16 @@ async function loadEnrollments(userId: string) {
   return data ?? []
 }
 
+async function loadCourses() {
+  const { data, error } = await adminClient
+    .from("portal_courses")
+    .select("id, title, description, instructor_name, starts_at, modality, location, status, created_at, updated_at")
+    .order("starts_at", { ascending: true })
+
+  if (error) throw error
+  return (data ?? []) as PortalCourse[]
+}
+
 async function loadAdminEnrollments() {
   const { data, error } = await adminClient
     .from("course_enrollments")
@@ -338,6 +361,20 @@ async function loadAdminEnrollments() {
   return [...grouped.values()]
 }
 
+async function loadAdminCourses() {
+  const [courses, groupedEnrollments] = await Promise.all([
+    loadCourses(),
+    loadAdminEnrollments(),
+  ])
+
+  const groupedMap = new Map(groupedEnrollments.map((item) => [item.course_id, item.inscritos]))
+
+  return courses.map((course) => ({
+    ...course,
+    inscritos: groupedMap.get(course.id) ?? [],
+  }))
+}
+
 async function removeEnrollmentAsAdmin(enrollmentId: string) {
   const { error } = await adminClient
     .from("course_enrollments")
@@ -345,6 +382,46 @@ async function removeEnrollmentAsAdmin(enrollmentId: string) {
     .eq("id", enrollmentId)
 
   if (error) throw error
+}
+
+async function createCourseAsAdmin(payload: {
+  title: string
+  description: string
+  instructorName: string
+  startsAt: string
+  modality: string
+  location: string | null
+  createdBy: string
+}) {
+  const { data, error } = await adminClient
+    .from("portal_courses")
+    .insert({
+      title: payload.title,
+      description: payload.description,
+      instructor_name: payload.instructorName,
+      starts_at: payload.startsAt,
+      modality: payload.modality,
+      location: payload.location,
+      status: "aberto",
+      created_by: payload.createdBy,
+    })
+    .select("id, title, description, instructor_name, starts_at, modality, location, status, created_at, updated_at")
+    .single()
+
+  if (error) throw error
+  return data as PortalCourse
+}
+
+async function updateCourseStatusAsAdmin(courseId: string, status: "aberto" | "encerrado") {
+  const { data, error } = await adminClient
+    .from("portal_courses")
+    .update({ status })
+    .eq("id", courseId)
+    .select("id, title, description, instructor_name, starts_at, modality, location, status, created_at, updated_at")
+    .single()
+
+  if (error) throw error
+  return data as PortalCourse
 }
 
 async function fetchUserByMatricula(matricula: string) {
@@ -426,6 +503,25 @@ Deno.serve(async (req) => {
       }, { headers: corsHeaders })
     }
 
+    if (action === "list_courses") {
+      const courses = await loadCourses()
+      return jsonResponse({ courses }, { headers: corsHeaders })
+    }
+
+    if (action === "admin_list_courses") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
+
+      if (!isAdminEmail(session.user.email)) {
+        return jsonResponse({ error: "Acesso restrito a administradores." }, { status: 403, headers: corsHeaders })
+      }
+
+      const courses = await loadAdminCourses()
+      return jsonResponse({ courses }, { headers: corsHeaders })
+    }
+
     if (action === "admin_remove_enrollment") {
       const session = await getSessionFromRequest(req)
       if (!session) {
@@ -446,6 +542,69 @@ Deno.serve(async (req) => {
       return jsonResponse({
         success: true,
       }, { headers: corsHeaders })
+    }
+
+    if (action === "admin_create_course") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
+
+      if (!isAdminEmail(session.user.email)) {
+        return jsonResponse({ error: "Acesso restrito a administradores." }, { status: 403, headers: corsHeaders })
+      }
+
+      const title = normalizeText(body.title)
+      const description = normalizeText(body.description)
+      const instructorName = normalizeText(body.instructorName)
+      const startsAt = normalizeText(body.startsAt)
+      const modality = normalizeText(body.modality)
+      const location = normalizeText(body.location) || null
+
+      if (!title || !description || !instructorName || !startsAt) {
+        return jsonResponse({ error: "Preencha nome, descricao, instrutor e horario do curso." }, { status: 400, headers: corsHeaders })
+      }
+
+      if (!["online", "presencial", "ambos"].includes(modality)) {
+        return jsonResponse({ error: "Modalidade invalida." }, { status: 400, headers: corsHeaders })
+      }
+
+      if (Number.isNaN(Date.parse(startsAt))) {
+        return jsonResponse({ error: "Horario invalido." }, { status: 400, headers: corsHeaders })
+      }
+
+      const course = await createCourseAsAdmin({
+        title,
+        description,
+        instructorName,
+        startsAt,
+        modality,
+        location,
+        createdBy: session.user.id,
+      })
+
+      return jsonResponse({ success: true, course }, { headers: corsHeaders })
+    }
+
+    if (action === "admin_update_course_status") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
+
+      if (!isAdminEmail(session.user.email)) {
+        return jsonResponse({ error: "Acesso restrito a administradores." }, { status: 403, headers: corsHeaders })
+      }
+
+      const courseId = normalizeText(body.courseId)
+      const status = normalizeText(body.status) as "aberto" | "encerrado"
+
+      if (!courseId || !["aberto", "encerrado"].includes(status)) {
+        return jsonResponse({ error: "Dados do curso invalidos." }, { status: 400, headers: corsHeaders })
+      }
+
+      const course = await updateCourseStatusAsAdmin(courseId, status)
+      return jsonResponse({ success: true, course }, { headers: corsHeaders })
     }
 
     if (action === "login") {
