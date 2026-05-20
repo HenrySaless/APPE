@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Esqueci minha senha | APPE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles/auth-recovery.css">
+</head>
+<body>
+  <main class="page-shell">
+    <section class="card">
+      <header class="card-hero">
+        <span class="eyebrow">Seguranca de acesso</span>
+        <h1>Recupere sua senha com seguranca.</h1>
+        <p>Informe seu e-mail institucional para receber um link temporario de redefinicao de senha.</p>
+      </header>
+
+      <div class="card-body">
+        <a class="back-link" href="../login.html">← Voltar para o login</a>
+
+        <div class="panel">
+          <strong>Como funciona:</strong> se o e-mail existir no portal, enviaremos instrucoes para continuar a recuperacao sem revelar se a conta esta cadastrada.
+        </div>
+
+        <p class="status info show" id="status-box">Preencha seu e-mail e enviaremos um link valido para atualizar sua senha.</p>
+
+        <form id="forgot-password-form" novalidate>
+          <div class="field">
+            <label for="email">E-mail</label>
+            <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="usuario@dominio.com" required>
+            <span class="helper">Use o mesmo e-mail associado ao seu cadastro no portal.</span>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary" id="submit-button" type="submit">Enviar link de recuperacao</button>
+            <a class="btn btn-secondary" href="../login.html">Cancelar</a>
+          </div>
+        </form>
+
+        <p class="footer-note">Para producao, configure um SMTP proprio no Supabase e adicione `https://appe-gold.vercel.app/update-password/` em Authentication &gt; URL Configuration &gt; Redirect URLs.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="../appe.config.js"></script>
+  <script type="module">
+    import { createToastManager } from "../components/toast.js";
+    import {
+      GENERIC_RECOVERY_SUCCESS_MESSAGE,
+      requestPasswordRecovery,
+      validateEmail,
+    } from "../lib/password-recovery.js";
+
+    const toast = createToastManager();
+    const form = document.getElementById("forgot-password-form");
+    const emailInput = document.getElementById("email");
+    const statusBox = document.getElementById("status-box");
+    const submitButton = document.getElementById("submit-button");
+
+    function setStatus(message, type = "info") {
+      statusBox.textContent = message;
+      statusBox.className = `status show ${type}`;
+    }
+
+    function setLoading(isLoading) {
+      emailInput.disabled = isLoading;
+      submitButton.disabled = isLoading;
+      submitButton.textContent = isLoading ? "Enviando..." : "Enviar link de recuperacao";
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const email = emailInput.value.trim();
+      if (!validateEmail(email)) {
+        setStatus("Informe um email valido para continuar.", "error");
+        toast.error("Confira o e-mail informado.");
+        emailInput.focus();
+        return;
+      }
+
+      setLoading(true);
+      setStatus("Preparando o envio do link de recuperacao...", "info");
+
+      try {
+        await requestPasswordRecovery(email);
+        form.reset();
+        setStatus(GENERIC_RECOVERY_SUCCESS_MESSAGE, "success");
+        toast.success("Link de recuperacao enviado.");
+      } catch (error) {
+        setStatus(error.message || "Nao foi possivel enviar o link agora. Tente novamente.", "error");
+        toast.error("Falha ao enviar o link de recuperacao.");
+      } finally {
+        setLoading(false);
+      }
+    });
+  </script>
+</body>
+</html>

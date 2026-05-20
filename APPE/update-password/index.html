@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atualizar senha | APPE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles/auth-recovery.css">
+</head>
+<body>
+  <main class="page-shell">
+    <section class="card">
+      <header class="card-hero">
+        <span class="eyebrow">Atualizacao segura</span>
+        <h1>Defina uma nova senha para sua conta.</h1>
+        <p>O link recebido por e-mail ativa uma sessao de recuperacao temporaria para concluir esta troca com seguranca.</p>
+      </header>
+
+      <div class="card-body">
+        <a class="back-link" href="../forgot-password/">← Solicitar novo link</a>
+
+        <div class="panel">
+          <strong>Recomendacao:</strong> use uma senha exclusiva e evite repetir combinacoes usadas em outros sistemas.
+        </div>
+
+        <p class="status info show" id="status-box">Validando seu link de recuperacao...</p>
+
+        <form class="is-hidden" id="update-password-form" novalidate>
+          <div class="field">
+            <label for="new-password">Nova senha</label>
+            <input id="new-password" name="newPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Digite sua nova senha" required>
+            <span class="helper">A senha precisa ter no minimo 6 caracteres.</span>
+          </div>
+
+          <div class="field">
+            <label for="confirm-password">Confirmar senha</label>
+            <input id="confirm-password" name="confirmPassword" type="password" minlength="6" autocomplete="new-password" placeholder="Repita sua nova senha" required>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary" id="submit-button" type="submit">Salvar nova senha</button>
+            <a class="btn btn-secondary" href="../forgot-password/">Solicitar outro link</a>
+          </div>
+        </form>
+
+        <div class="actions is-hidden" id="success-actions">
+          <a class="btn btn-primary" href="../login.html">Ir para o login</a>
+          <a class="btn btn-secondary" href="../index.html">Voltar ao portal</a>
+        </div>
+
+        <p class="footer-note">Se este link expirou, solicite um novo e-mail de recuperacao. Nao compartilhe este acesso com outras pessoas.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="../appe.config.js"></script>
+  <script type="module">
+    import { createToastManager } from "../components/toast.js";
+    import {
+      updateRecoveredPassword,
+      validatePasswordReset,
+      waitForRecoverySession,
+    } from "../lib/password-recovery.js";
+
+    const toast = createToastManager();
+    const form = document.getElementById("update-password-form");
+    const statusBox = document.getElementById("status-box");
+    const submitButton = document.getElementById("submit-button");
+    const newPasswordInput = document.getElementById("new-password");
+    const confirmPasswordInput = document.getElementById("confirm-password");
+    const successActions = document.getElementById("success-actions");
+
+    function setStatus(message, type = "info") {
+      statusBox.textContent = message;
+      statusBox.className = `status show ${type}`;
+    }
+
+    function setLoading(isLoading) {
+      newPasswordInput.disabled = isLoading;
+      confirmPasswordInput.disabled = isLoading;
+      submitButton.disabled = isLoading;
+      submitButton.textContent = isLoading ? "Salvando..." : "Salvar nova senha";
+    }
+
+    function showForm() {
+      form.classList.remove("is-hidden");
+      successActions.classList.add("is-hidden");
+    }
+
+    function showSuccessState() {
+      form.classList.add("is-hidden");
+      successActions.classList.remove("is-hidden");
+    }
+
+    async function boot() {
+      const recoveryState = await waitForRecoverySession();
+      if (!recoveryState.ok) {
+        setStatus(recoveryState.message, "error");
+        toast.error("Link de recuperacao invalido ou expirado.");
+        return;
+      }
+
+      setStatus("Link validado. Agora escolha sua nova senha.", "success");
+      showForm();
+      newPasswordInput.focus();
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const validationMessage = validatePasswordReset(
+        newPasswordInput.value,
+        confirmPasswordInput.value,
+      );
+
+      if (validationMessage) {
+        setStatus(validationMessage, "error");
+        toast.error(validationMessage);
+        return;
+      }
+
+      setLoading(true);
+      setStatus("Atualizando sua senha com seguranca...", "info");
+
+      try {
+        await updateRecoveredPassword(newPasswordInput.value);
+        form.reset();
+        setStatus("Senha atualizada com sucesso. Voce ja pode entrar com a nova senha.", "success");
+        showSuccessState();
+        toast.success("Senha redefinida com sucesso.");
+        window.setTimeout(() => {
+          window.location.href = "../login.html";
+        }, 1800);
+      } catch (error) {
+        setStatus(error.message || "Nao foi possivel atualizar a senha.", "error");
+        toast.error("Nao foi possivel concluir a redefinicao.");
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    boot();
+  </script>
+</body>
+</html>
