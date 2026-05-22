@@ -793,13 +793,13 @@ function renderCourses(page, filter) {
         <div class="course-meta">
           <div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/></svg>${c.instrutor}</div>
           <div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M5 1v4M11 1v4M2 7h12"/></svg>${c.data}</div>
+          <div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13h10"/><path d="M4.5 10.5h7"/><path d="M6 8h4"/><path d="M8 3v5"/></svg>Vagas: ${capacityLabel}</div>
           <div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h12"/><path d="M8 2v12"/></svg>${c.description}</div>
           ${localRow}
         </div>
         <div class="course-footer">
           <div class="course-actions">
             <span class="course-hours">Horário · ${c.horas}</span>
-            <span class="course-hours">${capacityLabel}</span>
             ${c.local ? `<span class="course-local">📍 ${c.local}</span>` : ''}
             <button class="course-enroll" ${(subscribed || unavailableCourse) ? 'disabled' : ''} onclick='subscribeCourse(${JSON.stringify(c)}, "${page}")'>${actionLabel}</button>
           </div>

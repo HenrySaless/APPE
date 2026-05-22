@@ -164,6 +164,25 @@
     font-weight: 700;
     cursor: pointer;
   }
+  .danger-btn {
+    border: 1px solid rgba(192,41,42,0.18);
+    background: rgba(192,41,42,0.08);
+    color: var(--red);
+    border-radius: 10px;
+    padding: 0.55rem 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .capacity-form {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 0.9rem;
+  }
+  .capacity-form input {
+    width: 120px;
+  }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -354,12 +373,12 @@
             <div class="course-title">${course.title}</div>
             <div class="course-meta">Modalidade: ${course.modality} | Data: ${formatCourseDate(course.starts_at)} | Instrutor: ${course.instructor_name}</div>
           </div>
-          <div class="course-meta">${course.inscritos.length} / ${course.capacity_limit || '-'} vaga(s)</div>
+          <div class="course-meta">Inscritos: ${course.inscritos.length} | Limite: ${course.capacity_limit ?? 'Nao definido'}</div>
         </div>
         <p class="course-description">${course.description}</p>
         <div class="course-admin-actions">
           <span class="pill ${course.status === 'encerrado' ? 'closed' : ''}">${getStatusLabel(course.status)}</span>
-          <span class="pill">Limite: ${course.capacity_limit || '-'}</span>
+          <span class="pill">Vagas: ${course.inscritos.length} / ${course.capacity_limit ?? 'Nao definido'}</span>
           <button
             type="button"
             class="toggle-btn"
@@ -369,7 +388,20 @@
           >
             ${course.status === 'encerrado' ? 'Reabrir vagas' : 'Encerrar vagas'}
           </button>
+          <button
+            type="button"
+            class="danger-btn delete-course-btn"
+            data-course-id="${course.id}"
+            data-course-title="${course.title}"
+          >
+            Excluir curso
+          </button>
         </div>
+        <form class="capacity-form" data-course-id="${course.id}" data-course-title="${course.title}">
+          <label for="capacity-${course.id}">Limite de vagas</label>
+          <input id="capacity-${course.id}" type="number" min="1" step="1" value="${course.capacity_limit ?? ''}" placeholder="Ex.: 30" required>
+          <button type="submit" class="toggle-btn capacity-save-btn">Salvar limite</button>
+        </form>
         <table>
           <thead>
             <tr>
@@ -463,6 +495,61 @@
     }
   }
 
+  async function updateCourseCapacity(form) {
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const courseId = form.dataset.courseId;
+    const courseTitle = form.dataset.courseTitle || 'este curso';
+    const input = form.querySelector('input[type="number"]');
+    const capacityLimit = input?.value?.trim();
+
+    if (!capacityLimit) {
+      setStatus('Informe um limite de vagas valido.', 'error');
+      input?.focus();
+      return;
+    }
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+
+    try {
+      await callPortalAuth({ action: 'admin_update_course_capacity', courseId, capacityLimit }, session.token);
+      await reloadAdminCourses(session.token, `Limite de vagas do curso "${courseTitle}" atualizado com sucesso.`);
+    } catch (error) {
+      if (submitButton) submitButton.disabled = false;
+      setStatus(error.message || 'Nao foi possivel atualizar o limite de vagas.', 'error');
+    }
+  }
+
+  async function deleteCourse(button) {
+    const session = getStoredSession();
+    if (!session?.token) {
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const courseId = button.dataset.courseId;
+    const courseTitle = button.dataset.courseTitle || 'este curso';
+    const confirmed = window.confirm(`Deseja excluir o curso "${courseTitle}"? Essa ação remove o curso e as inscricoes vinculadas.`);
+    if (!confirmed) return;
+
+    button.disabled = true;
+    button.textContent = 'Excluindo...';
+
+    try {
+      await callPortalAuth({ action: 'admin_delete_course', courseId }, session.token);
+      await reloadAdminCourses(session.token, `Curso "${courseTitle}" excluido com sucesso.`);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = 'Excluir curso';
+      setStatus(error.message || 'Nao foi possivel excluir o curso.', 'error');
+    }
+  }
+
   async function boot() {
     const session = getStoredSession();
     if (!session?.token) {
@@ -501,9 +588,22 @@
     }
 
     const toggleButton = event.target.closest('.toggle-btn');
-    if (toggleButton) {
+    if (toggleButton && toggleButton.dataset.nextStatus) {
       updateCourseStatus(toggleButton);
+      return;
     }
+
+    const deleteCourseButton = event.target.closest('.delete-course-btn');
+    if (deleteCourseButton) {
+      deleteCourse(deleteCourseButton);
+    }
+  });
+
+  document.getElementById('courses').addEventListener('submit', (event) => {
+    const form = event.target.closest('.capacity-form');
+    if (!form) return;
+    event.preventDefault();
+    updateCourseCapacity(form);
   });
 
   document.getElementById('course-form').addEventListener('submit', async (event) => {

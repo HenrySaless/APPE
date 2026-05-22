@@ -536,6 +536,22 @@ async function removeEnrollmentAsAdmin(enrollmentId: string) {
   if (error) throw error
 }
 
+async function removeCourseAsAdmin(courseId: string) {
+  const { error: deleteEnrollmentsError } = await adminClient
+    .from("course_enrollments")
+    .delete()
+    .eq("course_id", courseId)
+
+  if (deleteEnrollmentsError) throw deleteEnrollmentsError
+
+  const { error: deleteCourseError } = await adminClient
+    .from("portal_courses")
+    .delete()
+    .eq("id", courseId)
+
+  if (deleteCourseError) throw deleteCourseError
+}
+
 async function createCourseAsAdmin(payload: {
   title: string
   description: string
@@ -570,6 +586,42 @@ async function updateCourseStatusAsAdmin(courseId: string, status: "aberto" | "e
   const { data, error } = await adminClient
     .from("portal_courses")
     .update({ status })
+    .eq("id", courseId)
+    .select("id, title, description, instructor_name, starts_at, modality, location, status, capacity_limit, created_at, updated_at")
+    .single()
+
+  if (error) throw error
+  return data as PortalCourse
+}
+
+async function updateCourseCapacityAsAdmin(courseId: string, capacityLimit: number) {
+  const { data: existingCourse, error: existingCourseError } = await adminClient
+    .from("portal_courses")
+    .select("id, status")
+    .eq("id", courseId)
+    .single()
+
+  if (existingCourseError) throw existingCourseError
+
+  const { count: enrollmentCount, error: enrollmentCountError } = await adminClient
+    .from("course_enrollments")
+    .select("id", { count: "exact", head: true })
+    .eq("course_id", courseId)
+
+  if (enrollmentCountError) throw enrollmentCountError
+
+  const nextStatus = (enrollmentCount ?? 0) >= capacityLimit
+    ? "encerrado"
+    : String(existingCourse.status) === "encerrado"
+      ? "encerrado"
+      : "aberto"
+
+  const { data, error } = await adminClient
+    .from("portal_courses")
+    .update({
+      capacity_limit: capacityLimit,
+      status: nextStatus,
+    })
     .eq("id", courseId)
     .select("id, title, description, instructor_name, starts_at, modality, location, status, capacity_limit, created_at, updated_at")
     .single()
@@ -751,6 +803,25 @@ Deno.serve(async (req) => {
       }, { headers: corsHeaders })
     }
 
+    if (action === "admin_delete_course") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
+
+      if (!isAdminEmail(session.user.email)) {
+        return jsonResponse({ error: "Acesso restrito a administradores." }, { status: 403, headers: corsHeaders })
+      }
+
+      const courseId = normalizeText(body.courseId)
+      if (!courseId) {
+        return jsonResponse({ error: "Curso invalido." }, { status: 400, headers: corsHeaders })
+      }
+
+      await removeCourseAsAdmin(courseId)
+      return jsonResponse({ success: true }, { headers: corsHeaders })
+    }
+
     if (action === "admin_create_course") {
       const session = await getSessionFromRequest(req)
       if (!session) {
@@ -817,6 +888,27 @@ Deno.serve(async (req) => {
       }
 
       const course = await updateCourseStatusAsAdmin(courseId, status)
+      return jsonResponse({ success: true, course }, { headers: corsHeaders })
+    }
+
+    if (action === "admin_update_course_capacity") {
+      const session = await getSessionFromRequest(req)
+      if (!session) {
+        return jsonResponse({ error: "Sessao invalida. Faca login novamente." }, { status: 401, headers: corsHeaders })
+      }
+
+      if (!isAdminEmail(session.user.email)) {
+        return jsonResponse({ error: "Acesso restrito a administradores." }, { status: 403, headers: corsHeaders })
+      }
+
+      const courseId = normalizeText(body.courseId)
+      const capacityLimit = Number.parseInt(String(body.capacityLimit ?? ""), 10)
+
+      if (!courseId || !Number.isInteger(capacityLimit) || capacityLimit <= 0) {
+        return jsonResponse({ error: "Dados do curso invalidos." }, { status: 400, headers: corsHeaders })
+      }
+
+      const course = await updateCourseCapacityAsAdmin(courseId, capacityLimit)
       return jsonResponse({ success: true, course }, { headers: corsHeaders })
     }
 
