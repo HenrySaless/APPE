@@ -210,7 +210,7 @@
 <body>
   <main class="container">
     <h1>Painel administrativo</h1>
-    <p class="subtitle">Veja os inscritos por curso com nome completo e matrícula. O acesso é liberado somente para e-mails definidos como admin no backend.</p>
+    <p class="subtitle">Veja os inscritos por curso com nome completo, telefone e matrícula. O acesso é liberado somente para e-mails definidos como admin no backend.</p>
 
     <div class="actions">
       <a class="btn primary" href="dashboard.html">Voltar ao dashboard</a>
@@ -254,6 +254,12 @@
               <option value="presencial">Presencial</option>
               <option value="ambos">Ambos</option>
             </select>
+          </div>
+
+          <div class="field">
+            <label for="course-capacity-limit">Limite de vagas</label>
+            <input id="course-capacity-limit" name="capacityLimit" type="number" min="1" step="1" required>
+            <span class="helper">Quando o limite for atingido, o curso sera encerrado automaticamente.</span>
           </div>
 
           <div class="field">
@@ -348,11 +354,12 @@
             <div class="course-title">${course.title}</div>
             <div class="course-meta">Modalidade: ${course.modality} | Data: ${formatCourseDate(course.starts_at)} | Instrutor: ${course.instructor_name}</div>
           </div>
-          <div class="course-meta">${course.inscritos.length} inscrito(s)</div>
+          <div class="course-meta">${course.inscritos.length} / ${course.capacity_limit || '-'} vaga(s)</div>
         </div>
         <p class="course-description">${course.description}</p>
         <div class="course-admin-actions">
           <span class="pill ${course.status === 'encerrado' ? 'closed' : ''}">${getStatusLabel(course.status)}</span>
+          <span class="pill">Limite: ${course.capacity_limit || '-'}</span>
           <button
             type="button"
             class="toggle-btn"
@@ -367,6 +374,7 @@
           <thead>
             <tr>
               <th>Nome</th>
+              <th>Telefone</th>
               <th>Matrícula</th>
               <th class="table-actions">Ação</th>
             </tr>
@@ -375,6 +383,7 @@
             ${course.inscritos.map((person) => `
               <tr>
                 <td>${person.nome_completo}</td>
+                <td>${person.numero || '-'}</td>
                 <td>${person.matricula}</td>
                 <td>
                   <button
@@ -515,6 +524,7 @@
         instructorName: document.getElementById('course-instructor').value.trim(),
         startsAt: new Date(startsAtValue).toISOString(),
         modality: document.getElementById('course-modality').value,
+        capacityLimit: document.getElementById('course-capacity-limit').value,
         location: document.getElementById('course-location').value.trim()
       }, session.token);
 

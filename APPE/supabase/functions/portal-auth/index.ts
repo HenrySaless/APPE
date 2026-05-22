@@ -33,6 +33,7 @@ type PortalCourse = {
   modality: "online" | "presencial" | "ambos"
   location: string | null
   status: "aberto" | "encerrado"
+  capacity_limit: number | null
   created_at: string
   updated_at: string
 }
@@ -109,11 +110,12 @@ function getConflictMessageFromError(error: unknown) {
 function validateRegistrationInput(payload: {
   nomeCompleto: string
   email: string
+  numero: string
   matricula: string
   password: string
   confirmPassword: string
 }) {
-  if (!payload.nomeCompleto || !payload.email || !payload.matricula || !payload.password || !payload.confirmPassword) {
+  if (!payload.nomeCompleto || !payload.email || !payload.numero || !payload.matricula || !payload.password || !payload.confirmPassword) {
     return "Preencha todos os campos do cadastro."
   }
 
@@ -431,13 +433,29 @@ async function loadEnrollments(userId: string) {
 }
 
 async function loadCourses() {
-  const { data, error } = await adminClient
-    .from("portal_courses")
-    .select("id, title, description, instructor_name, starts_at, modality, location, status, created_at, updated_at")
-    .order("starts_at", { ascending: true })
+  const [coursesResult, enrollmentsResult] = await Promise.all([
+    adminClient
+      .from("portal_courses")
+      .select("id, title, description, instructor_name, starts_at, modality, location, status, capacity_limit, created_at, updated_at")
+      .order("starts_at", { ascending: true }),
+    adminClient
+      .from("course_enrollments")
+      .select("course_id"),
+  ])
 
-  if (error) throw error
-  return (data ?? []) as PortalCourse[]
+  if (coursesResult.error) throw coursesResult.error
+  if (enrollmentsResult.error) throw enrollmentsResult.error
+
+  const enrollmentCounts = new Map<string, number>()
+  for (const enrollment of enrollmentsResult.data ?? []) {
+    const courseId = String(enrollment.course_id)
+    enrollmentCounts.set(courseId, (enrollmentCounts.get(courseId) ?? 0) + 1)
+  }
+
+  return ((coursesResult.data ?? []) as PortalCourse[]).map((course) => ({
+    ...course,
+    enrolled_count: enrollmentCounts.get(course.id) ?? 0,
+  }))
 }
 
 async function loadAdminEnrollments() {
@@ -452,6 +470,7 @@ async function loadAdminEnrollments() {
       created_at,
       portal_users!inner (
         nome_completo,
+        numero,
         matricula
       )
     `)
@@ -465,7 +484,7 @@ async function loadAdminEnrollments() {
     course_title: string
     course_mode: string
     course_date: string
-    inscritos: Array<{ enrollment_id: string, nome_completo: string, matricula: string }>
+    inscritos: Array<{ enrollment_id: string, nome_completo: string, numero: string, matricula: string }>
   }>()
 
   for (const item of data ?? []) {
@@ -486,6 +505,7 @@ async function loadAdminEnrollments() {
     grouped.get(groupKey)?.inscritos.push({
       enrollment_id: item.id,
       nome_completo: user.nome_completo,
+      numero: user.numero,
       matricula: user.matricula,
     })
   }
@@ -522,6 +542,7 @@ async function createCourseAsAdmin(payload: {
   instructorName: string
   startsAt: string
   modality: string
+  capacityLimit: number
   location: string | null
   createdBy: string
 }) {
@@ -533,11 +554,12 @@ async function createCourseAsAdmin(payload: {
       instructor_name: payload.instructorName,
       starts_at: payload.startsAt,
       modality: payload.modality,
+      capacity_limit: payload.capacityLimit,
       location: payload.location,
       status: "aberto",
       created_by: payload.createdBy,
     })
-    .select("id, title, description, instructor_name, starts_at, modality, location, status, created_at, updated_at")
+    .select("id, title, description, instructor_name, starts_at, modality, location, status, capacity_limit, created_at, updated_at")
     .single()
 
   if (error) throw error
@@ -549,7 +571,7 @@ async function updateCourseStatusAsAdmin(courseId: string, status: "aberto" | "e
     .from("portal_courses")
     .update({ status })
     .eq("id", courseId)
-    .select("id, title, description, instructor_name, starts_at, modality, location, status, created_at, updated_at")
+    .select("id, title, description, instructor_name, starts_at, modality, location, status, capacity_limit, created_at, updated_at")
     .single()
 
   if (error) throw error
@@ -744,6 +766,7 @@ Deno.serve(async (req) => {
       const instructorName = normalizeText(body.instructorName)
       const startsAt = normalizeText(body.startsAt)
       const modality = normalizeText(body.modality)
+      const capacityLimit = Number.parseInt(String(body.capacityLimit ?? ""), 10)
       const location = normalizeText(body.location) || null
 
       if (!title || !description || !instructorName || !startsAt) {
@@ -758,12 +781,17 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Horario invalido." }, { status: 400, headers: corsHeaders })
       }
 
+      if (!Number.isInteger(capacityLimit) || capacityLimit <= 0) {
+        return jsonResponse({ error: "Informe um limite de vagas valido." }, { status: 400, headers: corsHeaders })
+      }
+
       const course = await createCourseAsAdmin({
         title,
         description,
         instructorName,
         startsAt,
         modality,
+        capacityLimit,
         location,
         createdBy: session.user.id,
       })
@@ -834,6 +862,7 @@ Deno.serve(async (req) => {
     if (action === "register") {
       const nomeCompleto = normalizeText(body.nomeCompleto)
       const email = normalizeEmail(body.email)
+      const numero = normalizeText(body.numero)
       const matricula = normalizeText(body.matricula)
       const password = normalizeText(body.password)
       const confirmPassword = normalizeText(body.confirmPassword)
@@ -841,6 +870,7 @@ Deno.serve(async (req) => {
       const validationMessage = validateRegistrationInput({
         nomeCompleto,
         email,
+        numero,
         matricula,
         password,
         confirmPassword,
@@ -866,6 +896,7 @@ Deno.serve(async (req) => {
           .update({
             nome_completo: nomeCompleto,
             email,
+            numero,
             matricula,
             metodo_login: "senha",
             password_hash: passwordHash,
@@ -877,7 +908,7 @@ Deno.serve(async (req) => {
           .insert({
             nome_completo: nomeCompleto,
             email,
-            numero: "",
+            numero,
             matricula,
             metodo_login: "senha",
             password_hash: passwordHash,
@@ -918,10 +949,10 @@ Deno.serve(async (req) => {
       const nomeCompleto = normalizeText(body.nomeCompleto)
       const email = normalizeEmail(body.email)
       const matricula = normalizeText(body.matricula)
-      const numero = normalizeText(body.numero) || normalizeText(session.user.numero)
+      const numero = normalizeText(body.numero)
 
-      if (!nomeCompleto || !email || !matricula) {
-        return jsonResponse({ error: "Preencha nome completo, e-mail e matricula." }, { status: 400, headers: corsHeaders })
+      if (!nomeCompleto || !email || !numero || !matricula) {
+        return jsonResponse({ error: "Preencha nome completo, telefone, e-mail e matricula." }, { status: 400, headers: corsHeaders })
       }
 
       if (!EMAIL_PATTERN.test(email)) {

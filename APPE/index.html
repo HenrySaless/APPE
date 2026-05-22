@@ -483,6 +483,8 @@ function transformCourse(record) {
     label: formatCourseLabel(record.starts_at),
     month: monthNames[startsAt.getMonth()],
     status: record.status,
+    enrolledCount: Number(record.enrolled_count || 0),
+    capacityLimit: Number(record.capacity_limit || 0) || null,
     horas: startsAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     local: record.location,
     modality: record.modality
@@ -549,6 +551,13 @@ async function loadCoursesFromBackend() {
   }
 }
 
+function syncCourseState(courseIdValue, updates) {
+  [ONLINE, PRESENCIAL].forEach((collection) => {
+    const item = collection.find((course) => course.id === courseIdValue);
+    if (item) Object.assign(item, updates);
+  });
+}
+
 function courseId(course) {
   return course.id;
 }
@@ -576,12 +585,13 @@ async function subscribeCourse(course, page) {
 
   if (course.status === 'encerrado') {
     showFeedback(`Vagas encerradas para "${course.title}".`);
+    await loadCoursesFromBackend();
     renderCourses(currentPage, currentPage === 'online' ? currentFilterOnline : currentFilterPresencial);
     return;
   }
 
   if (isSubscribed(course, page)) {
-    showFeedback(`Voce ja esta inscrito em "${course.title}".`);
+    showFeedback('Voce ja esta inscrito neste curso.');
     return;
   }
 
@@ -598,6 +608,11 @@ async function subscribeCourse(course, page) {
       created_at: new Date().toISOString()
     });
 
+    syncCourseState(courseId(course), {
+      enrolledCount: payload.enrolledCount ?? ((course.enrolledCount || 0) + 1),
+      status: payload.courseStatus || course.status,
+    });
+
     let message = `Inscricao confirmada para "${course.title}" em nome de ${currentUser.nome_completo}.`;
     if (payload.emailDelivered) {
       message += ' A confirmacao foi enviada para o e-mail cadastrado.';
@@ -611,9 +626,25 @@ async function subscribeCourse(course, page) {
     }
 
     showFeedback(message);
+    await loadCoursesFromBackend();
     renderCourses(currentPage, currentPage === 'online' ? currentFilterOnline : currentFilterPresencial);
     updateAuthBanner();
   } catch (error) {
+    if ((error.message || '').includes('Voce ja esta inscrito neste curso.') && !isSubscribed(course, page)) {
+      currentEnrollments.unshift({
+        course_id: courseId(course),
+        course_title: course.title,
+        course_mode: course.modality || page,
+        course_date: course.data,
+        created_at: new Date().toISOString()
+      });
+      updateAuthBanner();
+      renderCourses(currentPage, currentPage === 'online' ? currentFilterOnline : currentFilterPresencial);
+    }
+    if ((error.message || '').includes('Vagas encerradas')) {
+      await loadCoursesFromBackend();
+      renderCourses(currentPage, currentPage === 'online' ? currentFilterOnline : currentFilterPresencial);
+    }
     showFeedback(error.message || 'Nao foi possivel inscrever no curso.');
   }
 }
@@ -747,8 +778,12 @@ function renderCourses(page, filter) {
       const cardClass = isPresencial ? 'presencial-card' : 'online-card';
       const localRow = c.local ? `<div class="meta-row"><svg class="meta-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1C5.8 1 4 2.8 4 5c0 3.3 4 8 4 8s4-4.7 4-8c0-2.2-1.8-4-4-4z"/><circle cx="8" cy="5" r="1.5"/></svg>${c.local}</div>` : '';
       const subscribed = isSubscribed(c, page);
-      const unavailableCourse = c.status === 'encerrado';
+      const courseFull = c.capacityLimit !== null && c.enrolledCount >= c.capacityLimit;
+      const unavailableCourse = c.status === 'encerrado' || courseFull;
       const actionLabel = subscribed ? 'Inscricao realizada' : unavailableCourse ? 'Vagas encerradas' : 'Inscrever-se';
+      const capacityLabel = c.capacityLimit !== null
+        ? `${c.enrolledCount} / ${c.capacityLimit} vagas preenchidas`
+        : `${c.enrolledCount} inscricao(oes)`;
       html += `<div class="course-card ${cardClass}" style="animation:cardIn 0.4s ease both">
         <div class="course-card-header">
           <span class="course-tag ${tagClass}">${tagText}</span>
@@ -764,6 +799,7 @@ function renderCourses(page, filter) {
         <div class="course-footer">
           <div class="course-actions">
             <span class="course-hours">Horário · ${c.horas}</span>
+            <span class="course-hours">${capacityLabel}</span>
             ${c.local ? `<span class="course-local">📍 ${c.local}</span>` : ''}
             <button class="course-enroll" ${(subscribed || unavailableCourse) ? 'disabled' : ''} onclick='subscribeCourse(${JSON.stringify(c)}, "${page}")'>${actionLabel}</button>
           </div>

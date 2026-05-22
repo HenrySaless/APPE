@@ -378,6 +378,11 @@
               </div>
 
               <div class="field full">
+                <label for="register-numero">Telefone</label>
+                <input id="register-numero" name="numero" type="text" placeholder="Digite seu telefone" required>
+              </div>
+
+              <div class="field full">
                 <label for="register-matricula">Número de matrícula</label>
                 <input id="register-matricula" name="matricula" type="text" placeholder="Ex.: 168780000/01" pattern="[0-9]{9}/[0-9]{2}" title="Use o formato 123456789/01" required>
                 <span class="helper">A matrícula precisa ser única no portal.</span>
@@ -593,6 +598,7 @@
 
     const nomeCompletoInput = document.getElementById('register-nomeCompleto');
     const emailInput = document.getElementById('register-email');
+    const numeroInput = document.getElementById('register-numero');
     const matriculaInput = document.getElementById('register-matricula');
     const passwordInput = document.getElementById('register-password');
     const confirmInput = document.getElementById('register-confirmPassword');
@@ -605,6 +611,7 @@
         action: 'register',
         nomeCompleto: nomeCompletoInput.value.trim(),
         email: emailInput.value.trim(),
+        numero: numeroInput.value.trim(),
         matricula: matriculaInput.value.trim(),
         password: passwordInput.value.trim(),
         confirmPassword: confirmInput.value.trim()

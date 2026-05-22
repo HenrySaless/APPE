@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
 
     const { data: course, error: courseError } = await adminClient
       .from("portal_courses")
-      .select("id, title, description, instructor_name, starts_at, modality, location, status")
+      .select("id, title, description, instructor_name, starts_at, modality, location, status, capacity_limit")
       .eq("id", courseId)
       .maybeSingle()
 
@@ -143,26 +143,33 @@ Deno.serve(async (req) => {
       modalidade: courseMode,
     })
 
-    const { data: enrollment, error: enrollError } = await adminClient
-      .from("course_enrollments")
-      .upsert({
-        user_id: session.user.id,
-        course_id: courseId,
-        course_title: courseTitle,
-        course_mode: courseMode,
-        course_date: courseDate,
-        course_label: courseLabel,
-        course_status: courseStatus || null,
-        course_location: courseLocation,
-        course_instructor: courseInstructor,
-        google_calendar_url: calendarUrl,
-      }, {
-        onConflict: "user_id,course_id",
+    const { data: enrollmentAttempt, error: enrollError } = await adminClient
+      .rpc("portal_attempt_course_enrollment", {
+        p_user_id: session.user.id,
+        p_course_id: courseId,
+        p_course_title: courseTitle,
+        p_course_mode: courseMode,
+        p_course_date: courseDate,
+        p_course_label: courseLabel,
+        p_course_status: courseStatus || null,
+        p_course_location: courseLocation,
+        p_course_instructor: courseInstructor,
+        p_google_calendar_url: calendarUrl,
       })
-      .select("id, created_at")
       .single()
 
     if (enrollError) throw enrollError
+    if (!enrollmentAttempt) {
+      throw new Error("Nao foi possivel registrar a inscricao.")
+    }
+
+    if (enrollmentAttempt.outcome === "duplicate") {
+      return jsonResponse({ error: "Voce ja esta inscrito neste curso." }, { status: 409, headers: corsHeaders })
+    }
+
+    if (enrollmentAttempt.outcome === "closed") {
+      return jsonResponse({ error: "Vagas encerradas para este curso." }, { status: 400, headers: corsHeaders })
+    }
 
     const emailResult = await sendConfirmationEmail({
       email: session.user.email,
@@ -177,7 +184,12 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       success: true,
-      enrollment,
+      enrollment: enrollmentAttempt.enrollment_id ? {
+        id: enrollmentAttempt.enrollment_id,
+      } : null,
+      enrolledCount: enrollmentAttempt.enrolled_count,
+      capacityLimit: enrollmentAttempt.capacity_limit,
+      courseStatus: enrollmentAttempt.course_status,
       googleCalendarUrl: calendarUrl,
       emailDelivered: emailResult.delivered,
       emailReason: emailResult.reason,
