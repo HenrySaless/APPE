@@ -5,6 +5,7 @@ import { sendTransactionalEmail } from "../_shared/email.ts"
 const SESSION_DAYS = 7
 const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
 const RECOVERY_PASSWORD_MIN_LENGTH = 6
+const PASSWORD_RESET_TOKEN_MINUTES = 45
 const MATRICULA_PATTERN = /^\d{9}\/\d{2}$/
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_HASH_ITERATIONS = 120000
@@ -237,10 +238,6 @@ async function fetchPortalUserByEmail(email: string) {
   return data as PortalUserRow | null
 }
 
-function generateTemporaryPassword() {
-  return `Temp-${crypto.randomUUID()}-9a`
-}
-
 function getPasswordRecoveryRedirectUrl() {
   const explicitRedirect = normalizeText(Deno.env.get("PASSWORD_RECOVERY_REDIRECT_URL"))
   if (explicitRedirect) return explicitRedirect
@@ -253,45 +250,43 @@ function getPasswordRecoveryRedirectUrl() {
   return ""
 }
 
-async function ensureAuthRecoveryAccount(user: PortalUserRow) {
-  const { data, error } = await adminClient.auth.admin.createUser({
-    email: user.email,
-    password: generateTemporaryPassword(),
-    email_confirm: true,
-    user_metadata: {
-      matricula: user.matricula,
-      nome_completo: user.nome_completo,
-      portal_user_id: user.id,
-    },
-  })
-
-  if (error && !isAuthUserAlreadyRegistered(error)) {
-    throw error
-  }
-
-  return data?.user ?? null
+function createRandomToken() {
+  return `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll("-", "")
 }
 
-async function sendPasswordRecoveryEmail(user: PortalUserRow) {
-  const redirectTo = getPasswordRecoveryRedirectUrl()
-  if (!redirectTo) {
+async function createPasswordResetLink(user: PortalUserRow) {
+  const redirectUrl = getPasswordRecoveryRedirectUrl()
+  if (!redirectUrl) {
     throw new Error("PASSWORD_RECOVERY_REDIRECT_URL ou SITE_URL nao configurado nos segredos da Edge Function.")
   }
 
-  const { data, error } = await adminClient.auth.admin.generateLink({
-    type: "recovery",
-    email: user.email,
-    options: {
-      redirectTo,
-    },
+  const token = createRandomToken()
+  const tokenHash = await sha256Hex(token)
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_MINUTES * 60 * 1000)
+
+  const { error: cleanupError } = await adminClient
+    .from("portal_password_reset_tokens")
+    .delete()
+    .eq("user_id", user.id)
+    .is("used_at", null)
+
+  if (cleanupError) throw cleanupError
+
+  const { error } = await adminClient.from("portal_password_reset_tokens").insert({
+    user_id: user.id,
+    token_hash: tokenHash,
+    expires_at: expiresAt.toISOString(),
   })
 
   if (error) throw error
 
-  const actionLink = data?.properties?.action_link
-  if (!actionLink) {
-    throw new Error("Nao foi possivel gerar o link de recuperacao no Supabase Auth.")
-  }
+  const actionUrl = new URL(redirectUrl)
+  actionUrl.searchParams.set("token", token)
+  return actionUrl.toString()
+}
+
+async function sendPasswordRecoveryEmail(user: PortalUserRow) {
+  const actionLink = await createPasswordResetLink(user)
 
   const html = `
     <div style="font-family: Arial, sans-serif; color: #1a1a2e; line-height: 1.6;">
@@ -331,6 +326,51 @@ async function sendPasswordRecoveryEmail(user: PortalUserRow) {
   }
 
   return emailResult
+}
+
+async function verifyPasswordResetToken(token: string) {
+  const tokenHash = await sha256Hex(token)
+  const { data, error } = await adminClient
+    .from("portal_password_reset_tokens")
+    .select("id, user_id, expires_at, used_at")
+    .eq("token_hash", tokenHash)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data || data.used_at) return null
+  if (new Date(data.expires_at).getTime() <= Date.now()) return null
+
+  return data as { id: string; user_id: string; expires_at: string; used_at: string | null }
+}
+
+async function resetPasswordWithToken(token: string, password: string) {
+  const resetToken = await verifyPasswordResetToken(token)
+  if (!resetToken) {
+    return { ok: false, status: 401, message: "O link de recuperacao expirou ou nao e mais valido. Solicite um novo email." }
+  }
+
+  const passwordHash = await hashPassword(password)
+  const now = new Date().toISOString()
+
+  const { error: updateError } = await adminClient
+    .from("portal_users")
+    .update({
+      password_hash: passwordHash,
+      metodo_login: "senha",
+      ultimo_login_em: now,
+    })
+    .eq("id", resetToken.user_id)
+
+  if (updateError) throw updateError
+
+  const { error: tokenError } = await adminClient
+    .from("portal_password_reset_tokens")
+    .update({ used_at: now })
+    .eq("id", resetToken.id)
+
+  if (tokenError) throw tokenError
+
+  return { ok: true }
 }
 
 async function getSupabaseUserFromRequest(req: Request) {
@@ -722,7 +762,6 @@ Deno.serve(async (req) => {
 
       const user = await fetchPortalUserByEmail(email)
       if (user) {
-        await ensureAuthRecoveryAccount(user)
         const emailResult = await sendPasswordRecoveryEmail(user)
         return jsonResponse({
           success: true,
@@ -732,6 +771,41 @@ Deno.serve(async (req) => {
       }
 
       return jsonResponse({ success: true, delivered: false }, { headers: corsHeaders })
+    }
+
+    if (action === "verify_password_reset_token") {
+      const token = normalizeText(body.token)
+      if (!token) {
+        return jsonResponse({ error: "Token de recuperacao ausente." }, { status: 400, headers: corsHeaders })
+      }
+
+      const resetToken = await verifyPasswordResetToken(token)
+      if (!resetToken) {
+        return jsonResponse({ error: "O link de recuperacao expirou ou nao e mais valido. Solicite um novo email." }, { status: 401, headers: corsHeaders })
+      }
+
+      return jsonResponse({ success: true }, { headers: corsHeaders })
+    }
+
+    if (action === "reset_password_with_token") {
+      const token = normalizeText(body.token)
+      const password = normalizeText(body.password)
+      if (!token) {
+        return jsonResponse({ error: "Token de recuperacao ausente." }, { status: 400, headers: corsHeaders })
+      }
+
+      if (password.length < RECOVERY_PASSWORD_MIN_LENGTH) {
+        return jsonResponse({
+          error: `A senha deve ter no minimo ${RECOVERY_PASSWORD_MIN_LENGTH} caracteres.`,
+        }, { status: 400, headers: corsHeaders })
+      }
+
+      const result = await resetPasswordWithToken(token, password)
+      if (!result.ok) {
+        return jsonResponse({ error: result.message }, { status: result.status, headers: corsHeaders })
+      }
+
+      return jsonResponse({ success: true }, { headers: corsHeaders })
     }
 
     if (action === "sync_recovery_password") {

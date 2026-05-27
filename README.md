@@ -82,7 +82,7 @@ Abra:
 
 - O cadastro exige nome completo, e-mail, matrícula, senha e confirmação de senha.
 - A senha é armazenada apenas como hash no backend.
-- O fluxo de recuperação gera o link com `auth.admin.generateLink(...)`, envia o e-mail diretamente pela Edge Function e finaliza a troca com `supabase.auth.updateUser(...)`, sincronizando a nova senha para o login por matrícula do portal.
+- O fluxo de recuperação gera um token temporário próprio do portal, envia o e-mail diretamente pela Edge Function e salva a nova senha como hash no `portal_users`.
 - Em `Authentication > URL Configuration` do Supabase, adicione pelo menos `http://localhost:3000/update-password/` e `https://appe.app.br/update-password/` em `Redirect URLs`.
 - Em `Authentication > SMTP Settings`, o SMTP do Supabase pode continuar configurado, mas a recuperação do portal passa a depender do envio direto pela Edge Function com Brevo/Resend.
 - Em produção, mantenha `PORTAL_ADMIN_EMAILS`, `SUPABASE_SERVICE_ROLE_KEY`, `BREVO_API_KEY` e `RESEND_API_KEY` apenas nos segredos do Supabase.
