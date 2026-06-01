@@ -3,7 +3,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts"
 import { sendTransactionalEmail } from "../_shared/email.ts"
 
 const SESSION_DAYS = 7
-const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/
+const PASSWORD_PATTERN = /^.{6,}$/
 const RECOVERY_PASSWORD_MIN_LENGTH = 6
 const PASSWORD_RESET_TOKEN_MINUTES = 45
 const MATRICULA_PATTERN = /^\d{9}\/\d{2}$/
@@ -129,7 +129,7 @@ function validateRegistrationInput(payload: {
   }
 
   if (!PASSWORD_PATTERN.test(payload.password)) {
-    return "A senha deve ter no minimo 8 caracteres e conter letras e numeros."
+    return "A senha deve ter no minimo 6 caracteres."
   }
 
   if (payload.password !== payload.confirmPassword) {

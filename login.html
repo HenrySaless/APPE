@@ -353,7 +353,7 @@
 
             <div class="field">
               <label for="login-password">Senha</label>
-              <input id="login-password" name="password" type="password" placeholder="Digite sua senha" minlength="8" required>
+              <input id="login-password" name="password" type="password" placeholder="Digite sua senha" minlength="6" required>
             </div>
 
             <button class="submit" type="submit">Entrar</button>
@@ -390,13 +390,13 @@
 
               <div class="field">
                 <label for="register-password">Senha</label>
-                <input id="register-password" name="password" type="password" placeholder="Mínimo 8 caracteres" minlength="8" required>
-                <span class="helper">Use pelo menos 8 caracteres com letras e números.</span>
+                <input id="register-password" name="password" type="password" placeholder="Minimo 6 caracteres" minlength="6" required>
+                <span class="helper">Use pelo menos 6 caracteres.</span>
               </div>
 
               <div class="field">
                 <label for="register-confirmPassword">Confirmar senha</label>
-                <input id="register-confirmPassword" name="confirmPassword" type="password" placeholder="Repita a senha" minlength="8" required>
+                <input id="register-confirmPassword" name="confirmPassword" type="password" placeholder="Repita a senha" minlength="6" required>
               </div>
             </div>
 
@@ -417,7 +417,7 @@
   const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
   const params = new URLSearchParams(window.location.search);
   const matriculaPattern = /^\d{9}\/\d{2}$/;
-  const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+  const passwordPattern = /^.{6,}$/;
 
   const statusBox = document.getElementById('status-box');
   const courseSummaryText = document.getElementById('course-summary-text');
@@ -529,7 +529,7 @@
     const confirmPassword = confirmInput.value.trim();
 
     if (!passwordPattern.test(password)) {
-      passwordInput.setCustomValidity('Use pelo menos 8 caracteres com letras e numeros.');
+      passwordInput.setCustomValidity('Use pelo menos 6 caracteres.');
       passwordInput.reportValidity();
       return false;
     }
