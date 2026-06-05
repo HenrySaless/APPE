@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
   <title>Atualizar senha | APPE</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -134,7 +135,7 @@
           window.location.href = "../login.html";
         }, 1800);
       } catch (error) {
-        setStatus(error.message || "Nao foi possivel atualizar a senha.", "error");
+        setStatus("Nao foi possivel atualizar a senha agora. Tente novamente mais tarde.", "error");
         toast.error("Nao foi possivel concluir a redefinicao.");
       } finally {
         setLoading(false);

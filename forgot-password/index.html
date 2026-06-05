@@ -40,7 +40,6 @@
           </div>
         </form>
 
-        <p class="footer-note">A recuperacao usa o dominio oficial `https://appe.app.br/update-password/` configurado no Supabase.</p>
       </div>
     </section>
   </main>
@@ -91,7 +90,7 @@
         setStatus(GENERIC_RECOVERY_SUCCESS_MESSAGE, "success");
         toast.success("Link de recuperacao enviado.");
       } catch (error) {
-        setStatus(error.message || "Nao foi possivel enviar o link agora. Tente novamente.", "error");
+        setStatus("Nao foi possivel enviar o link agora. Tente novamente mais tarde.", "error");
         toast.error("Falha ao enviar o link de recuperacao.");
       } finally {
         setLoading(false);

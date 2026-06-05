@@ -617,7 +617,7 @@ async function subscribeCourse(course, page) {
     if (payload.emailDelivered) {
       message += ' A confirmacao foi enviada para o e-mail cadastrado.';
     } else {
-      message += ' A inscricao foi salva, mas o envio de e-mail ainda depende da configuracao do RESEND_API_KEY no Supabase.';
+      message += ' A inscricao foi salva, mas a confirmacao por e-mail nao pôde ser enviada agora.';
     }
 
     if (payload.googleCalendarUrl) {

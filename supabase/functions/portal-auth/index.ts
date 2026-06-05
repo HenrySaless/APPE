@@ -1,6 +1,6 @@
 import { adminClient, jsonResponse, sha256Hex } from "../_shared/db.ts"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
-import { sendTransactionalEmail } from "../_shared/email.ts"
+import { escapeHtml, sendTransactionalEmail } from "../_shared/email.ts"
 
 const SESSION_DAYS = 7
 const PASSWORD_PATTERN = /^.{6,}$/
@@ -9,6 +9,7 @@ const PASSWORD_RESET_TOKEN_MINUTES = 45
 const MATRICULA_PATTERN = /^\d{9}\/\d{2}$/
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_HASH_ITERATIONS = 120000
+const RECOVERY_GENERIC_ERROR_MESSAGE = "Nao foi possivel concluir a recuperacao agora. Tente novamente mais tarde."
 
 type PortalUser = {
   id: string
@@ -291,15 +292,15 @@ async function sendPasswordRecoveryEmail(user: PortalUserRow) {
   const html = `
     <div style="font-family: Arial, sans-serif; color: #1a1a2e; line-height: 1.6;">
       <h2>Redefinicao de senha - APPE</h2>
-      <p>Ola, ${user.nome_completo}.</p>
+      <p>Ola, ${escapeHtml(user.nome_completo)}.</p>
       <p>Recebemos uma solicitacao para redefinir a senha do seu acesso ao portal APPE.</p>
       <p>
-        <a href="${actionLink}" target="_blank" rel="noreferrer" style="display:inline-block;padding:12px 20px;background:#1a1a2e;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;">
+        <a href="${escapeHtml(actionLink)}" target="_blank" rel="noreferrer" style="display:inline-block;padding:12px 20px;background:#1a1a2e;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;">
           Redefinir senha
         </a>
       </p>
       <p>Se o botao acima nao funcionar, copie e cole este link no navegador:</p>
-      <p><a href="${actionLink}" target="_blank" rel="noreferrer">${actionLink}</a></p>
+      <p><a href="${escapeHtml(actionLink)}" target="_blank" rel="noreferrer">${escapeHtml(actionLink)}</a></p>
       <p>Se voce nao pediu esta alteracao, ignore este email.</p>
       <p>Academia de Policia Penal de Pernambuco</p>
     </div>
@@ -322,7 +323,7 @@ async function sendPasswordRecoveryEmail(user: PortalUserRow) {
   })
 
   if (!emailResult.delivered) {
-    throw new Error(`Falha ao enviar email de recuperacao via ${emailResult.provider}: ${emailResult.reason ?? "erro_desconhecido"}`)
+    throw new Error("Falha ao enviar email de recuperacao.")
   }
 
   return emailResult
@@ -760,17 +761,21 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "Informe um email valido." }, { status: 400, headers: corsHeaders })
       }
 
-      const user = await fetchPortalUserByEmail(email)
-      if (user) {
-        const emailResult = await sendPasswordRecoveryEmail(user)
-        return jsonResponse({
-          success: true,
-          delivered: true,
-          provider: emailResult.provider,
-        }, { headers: corsHeaders })
-      }
+      try {
+        const user = await fetchPortalUserByEmail(email)
+        if (user) {
+          await sendPasswordRecoveryEmail(user)
+          return jsonResponse({
+            success: true,
+            delivered: true,
+          }, { headers: corsHeaders })
+        }
 
-      return jsonResponse({ success: true, delivered: false }, { headers: corsHeaders })
+        return jsonResponse({ success: true, delivered: false }, { headers: corsHeaders })
+      } catch (error) {
+        console.error("Erro ao preparar recuperacao de senha:", error)
+        return jsonResponse({ error: RECOVERY_GENERIC_ERROR_MESSAGE }, { status: 500, headers: corsHeaders })
+      }
     }
 
     if (action === "verify_password_reset_token") {
@@ -1169,8 +1174,9 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ error: "Acao invalida." }, { status: 400, headers: corsHeaders })
   } catch (error) {
+    console.error("Erro inesperado em portal-auth:", error)
     return jsonResponse({
-      error: error instanceof Error ? error.message : "Erro interno ao autenticar.",
+      error: "Nao foi possivel concluir a solicitacao.",
     }, { status: 500, headers: corsHeaders })
   }
 })

@@ -1,3 +1,7 @@
 .tools/
 supabase/.temp/
 .vercel
+.DS_Store
+.env
+.env.*
+*.log

@@ -43,7 +43,6 @@ supabase secrets set \
   SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY> \
   PORTAL_ADMIN_EMAILS=<EMAIL_ADMIN_1,EMAIL_ADMIN_2> \
   BREVO_API_KEY=<OPCIONAL_PARA_EMAIL> \
-  RESEND_API_KEY=<OPCIONAL_FALLBACK_EMAIL> \
   PORTAL_SENDER_EMAIL=<EMAIL_VERIFICADO_NO_BREVO> \
   PASSWORD_RECOVERY_REDIRECT_URL=https://appe.app.br/update-password/ \
   PORTAL_SENDER_NAME=APPE
@@ -84,5 +83,11 @@ Abra:
 - A senha é armazenada apenas como hash no backend.
 - O fluxo de recuperação gera um token temporário próprio do portal, envia o e-mail diretamente pela Edge Function e salva a nova senha como hash no `portal_users`.
 - Em `Authentication > URL Configuration` do Supabase, adicione pelo menos `http://localhost:3000/update-password/` e `https://appe.app.br/update-password/` em `Redirect URLs`.
-- Em `Authentication > SMTP Settings`, o SMTP do Supabase pode continuar configurado, mas a recuperação do portal passa a depender do envio direto pela Edge Function com Brevo/Resend.
-- Em produção, mantenha `PORTAL_ADMIN_EMAILS`, `SUPABASE_SERVICE_ROLE_KEY`, `BREVO_API_KEY` e `RESEND_API_KEY` apenas nos segredos do Supabase.
+- Em `Authentication > SMTP Settings`, o SMTP do Supabase pode continuar configurado, mas a recuperação do portal passa a depender do envio direto pela Edge Function com Brevo.
+- Em produção, mantenha `PORTAL_ADMIN_EMAILS`, `SUPABASE_SERVICE_ROLE_KEY`, `BREVO_API_KEY` e `PORTAL_SENDER_EMAIL` apenas nos segredos do Supabase.
+
+## Segurança do repositório
+
+- O repositório é público e contém apenas configuração pública do frontend.
+- Nunca commite segredos em `appe.config.js`, `.env*` ou arquivos de ambiente locais.
+- Use `SECURITY.md` para orientar qualquer reporte privado de vulnerabilidades.

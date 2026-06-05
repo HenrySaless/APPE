@@ -1,6 +1,6 @@
 import { adminClient, jsonResponse, sha256Hex } from "../_shared/db.ts"
 import { corsHeaders, handleCors } from "../_shared/cors.ts"
-import { sendTransactionalEmail } from "../_shared/email.ts"
+import { escapeHtml, sendTransactionalEmail } from "../_shared/email.ts"
 import { buildGoogleCalendarUrl } from "../_shared/google-calendar.ts"
 
 async function getSession(req: Request) {
@@ -62,18 +62,18 @@ async function sendConfirmationEmail(payload: {
   const html = `
     <div style="font-family: Arial, sans-serif; color: #1a1a2e; line-height: 1.6;">
       <h2>Confirmacao de inscricao - APPE</h2>
-      <p>Ola, ${payload.name}.</p>
+      <p>Ola, ${escapeHtml(payload.name)}.</p>
       <p>Sua inscricao foi registrada com sucesso.</p>
       <ul>
-        <li><strong>Curso:</strong> ${payload.courseTitle}</li>
-        <li><strong>Modalidade:</strong> ${payload.courseMode}</li>
-        <li><strong>Data:</strong> ${payload.courseDate}</li>
-        ${payload.courseLabel ? `<li><strong>Periodo:</strong> ${payload.courseLabel}</li>` : ""}
-        ${payload.courseLocation ? `<li><strong>Local:</strong> ${payload.courseLocation}</li>` : ""}
+        <li><strong>Curso:</strong> ${escapeHtml(payload.courseTitle)}</li>
+        <li><strong>Modalidade:</strong> ${escapeHtml(payload.courseMode)}</li>
+        <li><strong>Data:</strong> ${escapeHtml(payload.courseDate)}</li>
+        ${payload.courseLabel ? `<li><strong>Periodo:</strong> ${escapeHtml(payload.courseLabel)}</li>` : ""}
+        ${payload.courseLocation ? `<li><strong>Local:</strong> ${escapeHtml(payload.courseLocation)}</li>` : ""}
       </ul>
       ${
         payload.googleCalendarUrl
-          ? `<p><a href="${payload.googleCalendarUrl}" target="_blank" rel="noreferrer">Adicionar lembrete no Google Agenda</a></p>`
+          ? `<p><a href="${escapeHtml(payload.googleCalendarUrl)}" target="_blank" rel="noreferrer">Adicionar lembrete no Google Agenda</a></p>`
           : ""
       }
       <p>Academia de Policia Penal de Pernambuco</p>
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
     }, { headers: corsHeaders })
   } catch (error) {
     return jsonResponse({
-      error: error instanceof Error ? error.message : "Erro interno ao inscrever no curso.",
+      error: "Nao foi possivel concluir a inscricao.",
     }, { status: 500, headers: corsHeaders })
   }
 })
