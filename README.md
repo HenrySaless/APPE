@@ -1,32 +1,15 @@
 # APPE Portal de Cursos
 
-Portal web da APPE para apresentar cursos, permitir login de usuários, inscrições e acompanhamento de dados básicos da conta.
+Um portal simples da APPE para apresentar cursos, receber acessos e organizar inscrições.
 
-## O que ele faz
+## Destaques
 
-- mostra cursos disponíveis;
-- permite login e cadastro;
-- exibe painel do usuário;
-- organiza inscrições e perfil;
-- oferece área administrativa.
+- interface clara e responsiva;
+- acesso de usuários com login e cadastro;
+- área do usuário e administração;
+- foco em uma experiência direta e fácil de usar.
 
-## Sobre o projeto
+## Sobre
 
 - criado por Henry Saless;
-- interface em HTML, CSS e JavaScript;
-- pronto para publicação na web;
-- link do projeto: [appe.app.br](https://appe.app.br/).
-
-## Acesso
-
-- página inicial: `index.html`
-- login: `login.html`
-- recuperação: `forgot-password/`
-- atualização de senha: `update-password/`
-- painel do usuário: `dashboard.html`
-- perfil: `profile.html`
-- administração: `admin.html`
-
-## Execução local
-
-Sirva a pasta com um servidor HTTP simples e abra a página inicial no navegador.
+- link oficial: [appe.app.br](https://appe.app.br/).
