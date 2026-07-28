@@ -410,11 +410,10 @@
   </main>
 
 <script src="appe.config.js"></script>
-<script>
-  const PORTAL_CONFIG = window.APPE_CONFIG || {};
-  const AUTH_STORAGE_KEY = 'appePortalSession';
-  const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
-  const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
+<script type="module">
+  import { callPortalAuth } from "./lib/portal-auth.js";
+  import { setStoredSession } from "./lib/portal-session.js";
+
   const params = new URLSearchParams(window.location.search);
   const matriculaPattern = /^\d{9}\/\d{2}$/;
   const passwordPattern = /^.{6,}$/;
@@ -428,29 +427,6 @@
   const registerPane = document.getElementById('register-pane');
   const loginForm = document.getElementById('login-form');
   const registerForm = document.getElementById('register-form');
-
-  function setStoredSession(session) {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
-  }
-
-  async function callPortalAuth(body, token) {
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/portal-auth`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
-        ...(token ? { 'x-portal-session': token } : {})
-      },
-      body: JSON.stringify(body)
-    });
-
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload.error || 'Nao foi possivel concluir a autenticacao.');
-    }
-
-    return payload;
-  }
 
   function getCourseTarget() {
     const curso = params.get('curso');

@@ -5,50 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel admin | APPE</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/portal-layout.css">
 <style>
-  :root {
-    --navy: #1c1f6b;
-    --red: #c0292a;
-    --paper: #f7f3ec;
-    --text: #1a1a2e;
-    --muted: #5c6379;
-    --line: rgba(28,31,107,0.14);
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    min-height: 100vh;
-    font-family: 'DM Sans', sans-serif;
-    background: linear-gradient(140deg, #0f1147 0%, #20124d 50%, #3b1212 100%);
-    color: var(--text);
-    padding: 2rem 1rem;
-  }
-  .container {
-    width: min(1080px, 100%);
-    margin: 0 auto;
-    background: var(--paper);
-    border-radius: 24px;
-    padding: 2rem;
-    box-shadow: 0 28px 60px rgba(0,0,0,0.2);
-  }
-  h1 {
-    font-family: 'Playfair Display', serif;
-    color: var(--navy);
-    font-size: clamp(1.8rem, 4vw, 2.5rem);
-    margin-bottom: 0.4rem;
-  }
-  .subtitle { color: var(--muted); margin-bottom: 1.4rem; line-height: 1.6; }
-  .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-  .btn {
-    border-radius: 12px;
-    border: 1px solid var(--line);
-    padding: 0.75rem 1rem;
-    font-weight: 700;
-    text-decoration: none;
-    color: var(--navy);
-    background: #fff;
-    cursor: pointer;
-  }
-  .btn.primary { background: linear-gradient(135deg, var(--navy), var(--red)); color: #fff; border: none; }
+  :root { --container-max: 1080px; }
   .status {
     border-radius: 14px;
     padding: 0.9rem 1rem;
@@ -295,47 +254,11 @@
   </main>
 
 <script src="appe.config.js"></script>
-<script>
-  const PORTAL_CONFIG = window.APPE_CONFIG || {};
-  const AUTH_STORAGE_KEY = 'appePortalSession';
-  const FUNCTIONS_BASE_URL = PORTAL_CONFIG.functionsBaseUrl || 'https://karpafjlfehxwpefpvio.supabase.co/functions/v1';
-  const SUPABASE_ANON_KEY = PORTAL_CONFIG.supabaseAnonKey || '';
+<script type="module">
+  import { callPortalAuthWithSession } from "./lib/portal-auth.js";
+  import { getStoredSession, setStoredSession, clearStoredSession } from "./lib/portal-session.js";
+
   let adminCourses = [];
-
-  function getStoredSession() {
-    try {
-      return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)) || null;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function setStoredSession(session) {
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
-  }
-
-  function clearStoredSession() {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-  }
-
-  async function callPortalAuth(body, token) {
-    const response = await fetch(`${FUNCTIONS_BASE_URL}/portal-auth`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
-        ...(token ? { 'x-portal-session': token } : {})
-      },
-      body: JSON.stringify(body)
-    });
-
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload.error || 'Nao foi possivel carregar o painel administrativo.');
-    }
-
-    return payload;
-  }
 
   function setStatus(message, type) {
     const element = document.getElementById('status');
@@ -437,7 +360,7 @@
   }
 
   async function reloadAdminCourses(sessionToken, successMessage) {
-    const payload = await callPortalAuth({ action: 'admin_list_courses' }, sessionToken);
+    const payload = await callPortalAuthWithSession({ action: 'admin_list_courses' }, sessionToken);
     renderCourses(payload.courses || []);
     setStatus(successMessage || 'Painel administrativo carregado com sucesso.');
   }
@@ -460,7 +383,7 @@
     button.textContent = 'Excluindo...';
 
     try {
-      await callPortalAuth({ action: 'admin_remove_enrollment', enrollmentId }, session.token);
+      await callPortalAuthWithSession({ action: 'admin_remove_enrollment', enrollmentId }, session.token);
       await reloadAdminCourses(session.token, `Inscrição de ${studentName} removida com sucesso.`);
     } catch (error) {
       button.disabled = false;
@@ -487,7 +410,7 @@
     button.disabled = true;
 
     try {
-      await callPortalAuth({ action: 'admin_update_course_status', courseId, status: nextStatus }, session.token);
+      await callPortalAuthWithSession({ action: 'admin_update_course_status', courseId, status: nextStatus }, session.token);
       await reloadAdminCourses(session.token, `Status do curso "${courseTitle}" atualizado com sucesso.`);
     } catch (error) {
       button.disabled = false;
@@ -517,7 +440,7 @@
     if (submitButton) submitButton.disabled = true;
 
     try {
-      await callPortalAuth({ action: 'admin_update_course_capacity', courseId, capacityLimit }, session.token);
+      await callPortalAuthWithSession({ action: 'admin_update_course_capacity', courseId, capacityLimit }, session.token);
       await reloadAdminCourses(session.token, `Limite de vagas do curso "${courseTitle}" atualizado com sucesso.`);
     } catch (error) {
       if (submitButton) submitButton.disabled = false;
@@ -541,7 +464,7 @@
     button.textContent = 'Excluindo...';
 
     try {
-      await callPortalAuth({ action: 'admin_delete_course', courseId }, session.token);
+      await callPortalAuthWithSession({ action: 'admin_delete_course', courseId }, session.token);
       await reloadAdminCourses(session.token, `Curso "${courseTitle}" excluido com sucesso.`);
     } catch (error) {
       button.disabled = false;
@@ -558,7 +481,7 @@
     }
 
     try {
-      const sessionPayload = await callPortalAuth({ action: 'session' }, session.token);
+      const sessionPayload = await callPortalAuthWithSession({ action: 'session' }, session.token);
       setStoredSession({ token: session.token, expiresAt: sessionPayload.expiresAt, profile: sessionPayload.profile, isAdmin: sessionPayload.isAdmin });
 
       if (!sessionPayload.isAdmin) {
@@ -566,7 +489,7 @@
         return;
       }
 
-      const payload = await callPortalAuth({ action: 'admin_list_courses' }, session.token);
+      const payload = await callPortalAuthWithSession({ action: 'admin_list_courses' }, session.token);
       renderCourses(payload.courses || []);
       setStatus('Painel administrativo carregado com sucesso.');
     } catch (error) {
@@ -617,7 +540,7 @@
 
     const startsAtValue = document.getElementById('course-starts-at').value;
     try {
-      await callPortalAuth({
+      await callPortalAuthWithSession({
         action: 'admin_create_course',
         title: document.getElementById('course-title').value.trim(),
         description: document.getElementById('course-description').value.trim(),

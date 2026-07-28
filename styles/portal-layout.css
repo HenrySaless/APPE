@@ -1,0 +1,68 @@
+:root {
+  --navy: #1c1f6b;
+  --red: #c0292a;
+  --paper: #f7f3ec;
+  --text: #1a1a2e;
+  --muted: #5c6379;
+  --line: rgba(28, 31, 107, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: "DM Sans", sans-serif;
+  background: linear-gradient(140deg, #0f1147 0%, #20124d 50%, #3b1212 100%);
+  color: var(--text);
+  padding: 2rem 1rem;
+}
+
+.container {
+  width: min(var(--container-max, 980px), 100%);
+  margin: 0 auto;
+  background: var(--paper);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.2);
+}
+
+h1 {
+  font-family: "Playfair Display", serif;
+  color: var(--navy);
+  font-size: clamp(1.7rem, 4vw, 2.5rem);
+  margin-bottom: 0.4rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin-bottom: 1.4rem;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.btn {
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--navy);
+  background: #fff;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: linear-gradient(135deg, var(--navy), var(--red));
+  color: #fff;
+  border: none;
+}
