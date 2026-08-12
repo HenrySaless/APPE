@@ -72,6 +72,7 @@
     const newPasswordInput = document.getElementById("new-password");
     const confirmPasswordInput = document.getElementById("confirm-password");
     const successActions = document.getElementById("success-actions");
+    let recoveryToken = "";
 
     function setStatus(message, type = "info") {
       statusBox.textContent = message;
@@ -103,6 +104,7 @@
         return;
       }
 
+      recoveryToken = recoveryState.token || "";
       setStatus("Link validado. Agora escolha sua nova senha.", "success");
       showForm();
       newPasswordInput.focus();
@@ -126,7 +128,7 @@
       setStatus("Atualizando sua senha com seguranca...", "info");
 
       try {
-        await updateRecoveredPassword(newPasswordInput.value);
+        await updateRecoveredPassword(newPasswordInput.value, recoveryToken);
         form.reset();
         setStatus("Senha atualizada com sucesso. Voce ja pode entrar com a nova senha.", "success");
         showSuccessState();
@@ -135,8 +137,11 @@
           window.location.href = "../login.html";
         }, 1800);
       } catch (error) {
-        setStatus("Nao foi possivel atualizar a senha agora. Tente novamente mais tarde.", "error");
-        toast.error("Nao foi possivel concluir a redefinicao.");
+        const message = error instanceof Error && error.message
+          ? error.message
+          : "Nao foi possivel atualizar a senha agora. Tente novamente mais tarde.";
+        setStatus(message, "error");
+        toast.error(message);
       } finally {
         setLoading(false);
       }
